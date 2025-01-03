@@ -223,7 +223,22 @@ class BooKeeperDB:
             rc = cursor.execute(query).fetchone()[0]
         return rc > 0
 
+    def is_bad_file(self, file_name: str):
+        res, mod_file_name = test_unicode_string(file_name)
+        if not res:
+            file_name = mod_file_name
+
+        with contextlib.closing(self.connection.cursor()) as cursor:
+            query = f"""select count(*) from 
+                           bad_files where file_name = '{self.escape_string(file_name)}';
+                           """
+            rc = cursor.execute(query).fetchone()[0]
+        return rc > 0
+
     def is_scanned_file(self, file_name: str, bft: BookFileType):
+        if self.is_bad_file(file_name):
+            return True
+
         if bft in book_archive_types:
             return self.is_scanned_archive(file_name)
         else:
