@@ -1,0 +1,9 @@
+{
+  "ram_drive_path":  "/mnt/ramdrive",
+  "libraries":       ["./test"],
+  "work_path":       "./",
+  "db_file_name":    "bookeeper_test.db",
+  "log_file_name":   "bookeeper_test.log",
+  "log_level":       "diagnostic",
+  "language_option": "eng+rus"
+}
