@@ -217,10 +217,10 @@ class BooKeeperDB:
             file_name = mod_file_name
 
         with contextlib.closing(self.connection.cursor()) as cursor:
-            rc = cursor.execute(f"""select count(*) from 
-                                    book_files where file_name = '{self.escape_string(file_name)}';
-                                    """).fetchone()[0]
-
+            query = f"""select count(*) from 
+                           book_files where file_name = '{self.escape_string(file_name)}';
+                           """
+            rc = cursor.execute(query).fetchone()[0]
         return rc > 0
 
     def is_scanned_file(self, file_name: str, bft: BookFileType):
