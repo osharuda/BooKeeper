@@ -64,6 +64,15 @@ The table below describes available options:
 | `"log_level"`         | Log level. Available values are: `Diagnostic`, `Log`, `Warning`, `Error`.|
 | `"language_option"`   | Language option for tesseract. See `man tesseract`, `-l` option. |
 
+
+
+There are also some debug (optional) values:
+| Name                          | Value                                                                      |  
+|:------------------------------|:---------------------------------------------------------------------------|
+| `"delete_artifacts"`          | If 1, deletes temporary artifacts from the RAM drive. By default 1.        |
+| `"delete_db_on_start"`        | If 1, deletes database on scan start. By default 0.                        |
+| `"clear_ram_drive_on_start"`  | If 1, clears content of the RAM drive before program starts. By default 0. |
+
 ## Running
 To run script you have to create virtual environment first by running:
 ```
@@ -74,6 +83,14 @@ After that run
 ```
 ./scan.sh <config file>
 ```
+This script will take for a while, it depends on the size of your library. If you want to pause script execution press `Ctrl`-`C` and exit, if required.
+
+Once database is built, run
+```
+./browse.sh <config file>
+```
+
+In order to searh for required documents. Select and right click on a book from search result for a context menu. You may either to inspect document information, or try to open it. If file is required to be unpacked from archive, it will be extracted to the RAM drive.
 
 ## Database structure
 
