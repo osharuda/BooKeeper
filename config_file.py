@@ -17,6 +17,8 @@
 
 import json
 import os
+from xmlrpc.client import Boolean
+
 
 class BooKeeperConfig:
     def __init__(self, config_file_name):
@@ -30,7 +32,13 @@ class BooKeeperConfig:
                 self.log_file_name = os.path.join(self.work_path, result['log_file_name'])
                 self.log_level = result['log_level']
                 self.language_option = result['language_option']
+                self.delete_artifacts = bool(result.get('delete_artifacts', 1))
+                self.delete_db_on_start = bool(result.get('delete_db_on_start', 0))
+                self.clear_ram_drive_on_start = bool(result.get('clear_ram_drive_on_start', 0))
         except Exception as e:
             print(f'Failed to load configuration file: {config_file_name}')
             print(str(e))
             quit(1)
+        return
+
+

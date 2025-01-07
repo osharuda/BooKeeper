@@ -16,8 +16,10 @@
  """
 
 import os
+import shutil
 
 from database import BooKeeperDB
+from docbrowser import logger
 from processors.proc_base import get_book_type, BookInfo, BookFileType, book_archive_types
 from processors.processors import init_processors
 from terminator import Terminator
@@ -26,7 +28,11 @@ from logger import Logger
 
 
 class Scanner:
-    def __init__(self, library_path: str, ram_drive_path:str, language_option: str):
+    def __init__(self,
+                 library_path: str,
+                 ram_drive_path:str,
+                 language_option: str,
+                 delete_artifacts: bool):
         self.archive_stack = list()
         self.current_logical_path = ''
         self.db = BooKeeperDB()
@@ -35,9 +41,11 @@ class Scanner:
         self.ram_drive_path = ram_drive_path
         self.language_option = language_option
         self.library_path = library_path
+        self.delete_artifacts = delete_artifacts
         self.processor_map = init_processors(
             temp_dir=self.ram_drive_path,
             lang_opt=self.language_option,
+            delete_artifacts=self.delete_artifacts,
             on_scan_file=self.on_scan_file,
             on_book_callback=self.on_book,
             on_archive_enter=self.on_archive_enter,

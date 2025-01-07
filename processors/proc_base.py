@@ -19,6 +19,9 @@ import threading
 from collections.abc import Callable
 from enum import IntEnum
 from abc import ABC, abstractmethod
+
+from pydantic.v1.validators import hashable_validator
+
 from tools import *
 import os
 from threading import *
@@ -38,20 +41,44 @@ class BookFileType(IntEnum):
 
 book_archive_types = {BookFileType.ARCH_TARGZ, BookFileType.ARCH_7Z, BookFileType.ARCH_ZIP, BookFileType.ARCH_RAR}
 
+
+
 class BookInfo:
-    def __init__(self):
-        self.book_type = BookFileType.NONE
-        self.name = ""
-        self.ocr = False
-        self.page_count = -1
-        self.size = -1
-        self.text_data = ""
-        self.hash_value = ""
+    def __init__(self,
+                 book_type = BookFileType.NONE,
+                 name = "",
+                 ocr = False,
+                 page_count = -1,
+                 size = -1,
+                 text_data = '',
+                 hash_value = ''):
+        self.book_type = book_type
+        self.name = name
+        self.ocr = ocr
+        self.page_count = page_count
+        self.size = size
+        self.text_data = text_data
+        self.hash_value = hash_value
+
+    def to_report(self):
+        text_recognition = "OCR" if self.ocr else "TEXT LAYER"
+        return f"""File name:
+{self.name}
+Book type: {BookFileType(self.book_type).name}
+Text source: {text_recognition}
+Page count: {self.page_count}
+File size: {self.size}
+File hash (MD5): {self.hash_value}
+
+Text data:
+{self.text_data}"""
+
 
 class Book_PROC(ABC):
     def __init__(self,
                  tmpdir: str,
                  lang_opt: str,
+                 delete_artifacts: bool,
                  on_book_callback: Callable[[str, BookInfo], None],
                  on_bad_callback: Callable[[str, str], None]):
         self.temp_dir = tmpdir
@@ -60,6 +87,7 @@ class Book_PROC(ABC):
         self.max_page = 4
         self.max_text_data_len = 1024
         self.on_bad_callback = on_bad_callback
+        self.delete_artifacts = delete_artifacts
         pass
 
     @abstractmethod
@@ -169,8 +197,9 @@ class Book_PROC(ABC):
 
         res = read_text_file(txt_name)
 
-        os.unlink(png_name)
-        os.unlink(txt_name)
+        if self.delete_artifacts:
+            os.unlink(png_name)
+            os.unlink(txt_name)
 
         return res
 

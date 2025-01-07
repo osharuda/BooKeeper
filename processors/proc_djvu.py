@@ -21,9 +21,13 @@ from processors.proc_base import *
 
 
 class Djvu_PROC(Book_PROC):
-    def __init__(self, tmpdir: str, lang_opt: str, on_book_callback: Callable[[str, BookInfo], None],
+    def __init__(self,
+                 tmpdir: str,
+                 lang_opt: str,
+                 delete_artifacts: bool,
+                 on_book_callback: Callable[[str, BookInfo], None],
                  on_bad_callback: Callable[[str, str], None]):
-        super().__init__(tmpdir, lang_opt, on_book_callback, on_bad_callback)
+        super().__init__(tmpdir, lang_opt, delete_artifacts, on_book_callback, on_bad_callback)
         pass
 
     def process_file(self, file_name: str, file_hash: str):
@@ -48,13 +52,14 @@ class Djvu_PROC(Book_PROC):
         res, code, stdout = run_shell_adv(['ddjvu', f'-page={page}', f'{file_name}', f'{pnm_name}'],
                                           print_stdout=False)
         if res is False:
-            if os.path.isfile(pnm_name):
+            if os.path.isfile(pnm_name) and self.delete_artifacts:
                 os.unlink(pnm_name)
             raise RuntimeError(f'Failed to extract page. ddjvu returned error: {code}\n{stdout}')
 
         res = self.ocr_text(pnm_name)
 
-        os.unlink(pnm_name)
+        if self.delete_artifacts:
+            os.unlink(pnm_name)
         return res
 
     def get_page_text_layer(self, file_name: str, page: int, page_num: int) -> str:

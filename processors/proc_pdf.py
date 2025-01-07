@@ -25,9 +25,10 @@ class Pdf_PROC(Book_PROC):
     def __init__(self,
                  tmpdir: str,
                  lang_opt: str,
+                 delete_artifacts: bool,
                  on_book_callback: Callable[[str, BookInfo], None],
                  on_bad_callback: Callable[[str, str], None]):
-        super().__init__(tmpdir, lang_opt, on_book_callback, on_bad_callback)
+        super().__init__(tmpdir, lang_opt, delete_artifacts, on_book_callback, on_bad_callback)
         self.page_num_re = re.compile(r'^Pages:\s+(\d+)\s*$', re.MULTILINE)
         pass
 
@@ -68,12 +69,13 @@ class Pdf_PROC(Book_PROC):
         res, code, stdout = run_shell_adv(['pdftoppm', file_name, f'-f', f'{page}', f'-l', f'{page}', base_name],
                                           print_stdout=False)
         if res is False:
-            if os.path.isfile(ppm_name):
+            if os.path.isfile(ppm_name) and self.delete_artifacts:
                 os.unlink(ppm_name)
             raise RuntimeError(f'Failed to extract page image. pdftoppm returned error: {code}\n{stdout}')
 
         res = self.ocr_text(ppm_name)
-        os.unlink(ppm_name)
+        if self.delete_artifacts:
+            os.unlink(ppm_name)
         return res
 
     def get_page_text_layer(self, file_name: str, page: int, page_num: int) -> str:
@@ -82,11 +84,12 @@ class Pdf_PROC(Book_PROC):
         res, code, stdout = run_shell_adv(['pdftotext', file_name, f'-f', f'{page}', f'-l', f'{page}', out_name],
                                           print_stdout=False)
         if res is False:
-            if os.path.isfile(out_name):
+            if os.path.isfile(out_name) and self.delete_artifacts:
                 os.unlink(out_name)
             raise RuntimeError(f'Failed to extract text layer. pdftotext returned error: {code}\n{stdout}')
 
         res = read_text_file(out_name).strip()
-        os.unlink(out_name)
+        if self.delete_artifacts:
+            os.unlink(out_name)
 
         return res

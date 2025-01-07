@@ -25,6 +25,7 @@ from processors.proc_pdf import *
 
 def init_processors(temp_dir: str,
                     lang_opt: str,
+                    delete_artifacts: bool,
                     on_scan_file: Callable[[str, str], None],
                     on_book_callback: Callable[[str, BookInfo], None],
                     on_archive_enter: Callable[[str, str, str], None],
@@ -32,10 +33,10 @@ def init_processors(temp_dir: str,
                     on_bad_book_callback: Callable[[str, str], None],
                     on_bad_archive_callback: Callable[[str, str], None]):
     processor_map = dict()
-    processor_map[BookFileType.DJVU] = Djvu_PROC(temp_dir, lang_opt, on_book_callback, on_bad_book_callback)
-    processor_map[BookFileType.PDF] = Pdf_PROC(temp_dir, lang_opt, on_book_callback, on_bad_book_callback)
-    processor_map[BookFileType.ARCH_TARGZ] = Arch_PROC(temp_dir, lang_opt, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_TARGZ)
-    processor_map[BookFileType.ARCH_RAR] = Arch_PROC(temp_dir, lang_opt, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_RAR)
-    processor_map[BookFileType.ARCH_ZIP] = Arch_PROC(temp_dir, lang_opt, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_ZIP)
-    processor_map[BookFileType.ARCH_7Z] = Arch_PROC(temp_dir, lang_opt, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_7Z)
+    processor_map[BookFileType.DJVU] = Djvu_PROC(temp_dir, lang_opt, delete_artifacts, on_book_callback, on_bad_book_callback)
+    processor_map[BookFileType.PDF] = Pdf_PROC(temp_dir, lang_opt, delete_artifacts, on_book_callback, on_bad_book_callback)
+    processor_map[BookFileType.ARCH_TARGZ] = Arch_PROC(temp_dir, lang_opt, delete_artifacts, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_TARGZ)
+    processor_map[BookFileType.ARCH_RAR] = Arch_PROC(temp_dir, lang_opt, delete_artifacts, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_RAR)
+    processor_map[BookFileType.ARCH_ZIP] = Arch_PROC(temp_dir, lang_opt, delete_artifacts, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_ZIP)
+    processor_map[BookFileType.ARCH_7Z] = Arch_PROC(temp_dir, lang_opt, delete_artifacts, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_7Z)
     return processor_map

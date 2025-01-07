@@ -157,3 +157,20 @@ def split_file_name(file_name: str, known_exts: set[str]=None) -> tuple[str, str
 def test_unicode_string(s: str):
     t = s.encode('utf-8', errors='ignore').decode('utf-8')
     return s == t, t
+
+def wrap_text(s: str, chars_per_line: int) -> str:
+    res = ''
+    row_cnt = 0
+    for i in range(0, len(s)):
+        c = s[i]
+        res += c
+        if c=='\n':
+            row_cnt = 0
+
+        if row_cnt>chars_per_line:
+            row_cnt = 0
+            res += '\n'
+        row_cnt += 1
+
+    return res
+

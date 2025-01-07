@@ -269,3 +269,40 @@ class BooKeeperDB:
                                     """).fetchone()[0]
 
         return rc > 0
+
+    def search_books(self, s: str):
+        data = list('')
+        hashes = list('')
+        res, mod_file_name = test_unicode_string(s)
+        if not res:
+            return False, data, hashes
+
+
+        query = f"""select file_name, hash from book_files where hash in 
+                         (select hash from books where
+                              lower(books.text_data) like '%{self.escape_string(s)}%');"""
+
+
+        try:
+            with contextlib.closing(self.connection.cursor()) as cursor:
+                query_res = cursor.execute(query).fetchall()
+                data = list(list(zip(*query_res))[0])
+                hashes = list(list(zip(*query_res))[1])
+                res = True
+        except Exception as e:
+            res = False
+
+        return res, data, hashes
+
+
+    def get_book_info(self, hash: str):
+
+        query = f"""select size, ocr, booktype, page_count, text_data, tokens from books where hash='{self.escape_string(hash)}';"""
+        query_res = None
+        try:
+            with contextlib.closing(self.connection.cursor()) as cursor:
+                query_res = cursor.execute(query).fetchone()
+        except Exception as e:
+            pass
+
+        return query_res
