@@ -14,12 +14,13 @@
     See the License for the specific language governing permissions and
     limitations under the License.
  """
-
+import operator
 import sqlite3
 import contextlib
 from processors.proc_base import *
 from processors.processors import BookInfo
 from logger import *
+import re
 
 class BooKeeperDB:
     _instance = None
@@ -42,6 +43,8 @@ class BooKeeperDB:
         self.logger = Logger()
         self.db_file_name = db_file_name
         self.db_escape_trans = str.maketrans({"'": "''"})
+        self.book_cache = None
+        self.file_name_cache = None
 
         if override_db and os.path.isfile(self.db_file_name):
             os.unlink(self.db_file_name)
@@ -49,6 +52,7 @@ class BooKeeperDB:
         self.connection = sqlite3.connect(self.db_file_name)
         self.init_db()
         self.connection.commit()
+        self.update_cache()
         self.logger.print_diagnostic('BooKeeperDB created.', console_only=True)
 
 
@@ -270,6 +274,63 @@ class BooKeeperDB:
 
         return rc > 0
 
+    def update_cache(self):
+        self.book_cache = None
+        self.file_name_cache = None
+
+        try:
+            with contextlib.closing(self.connection.cursor()) as cursor:
+                query = """select books.hash, books.text_data from books;"""
+                query_res = cursor.execute(query).fetchall()
+                self.book_cache = list(map(lambda t: (t[0], t[1].lower()), query_res))
+
+
+                query2 = """select hash, file_name from book_files;"""
+                query2_res = cursor.execute(query2).fetchall()
+
+                temp_file_name_cache = dict()
+                for h, fn in query2_res:
+                    if h not in temp_file_name_cache.keys():
+                        temp_file_name_cache[h] = set()
+
+                    temp_file_name_cache[h].add(fn)
+
+                self.file_name_cache = dict()
+                for h, fs in temp_file_name_cache.items():
+                    self.file_name_cache[h] = list(fs)
+
+                res = True
+        except Exception as e:
+            res = False
+
+        return res
+
+    def search_books_in_cache(self, s: str):
+        search_re = re.compile(re.escape(s.lower()))
+        res = False
+        file_list = list()
+        hash_list = list()
+        s = s.lower()
+
+        match_books = dict()
+        for h,t in self.book_cache:
+            fr = re.findall(search_re, t)
+            if fr:
+                rang = len(fr)
+                match_books[h] = rang
+
+        # Sort by rang
+        sorted_match = sorted(match_books.items(), key=lambda kv: kv[1], reverse=True)
+
+        for h, n in sorted_match:
+            res = True
+            fl = self.file_name_cache[h]
+            hash_list = hash_list + [h] * len(fl)
+            file_list = file_list + fl
+
+        return res, file_list, hash_list
+
+
     def search_books(self, s: str):
         data = list('')
         hashes = list('')
@@ -277,11 +338,9 @@ class BooKeeperDB:
         if not res:
             return False, data, hashes
 
-
         query = f"""select file_name, hash from book_files where hash in 
                          (select hash from books where
                               lower(books.text_data) like '%{self.escape_string(s)}%');"""
-
 
         try:
             with contextlib.closing(self.connection.cursor()) as cursor:

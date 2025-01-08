@@ -35,6 +35,7 @@ from processors.proc_base import BookInfo, BookFileType
 config = config_file.BooKeeperConfig(sys.argv[1])
 logger = logger.Logger(log_file=config.log_file_name, level=config.log_level)
 db = database.BooKeeperDB(db_file_name=config.db_file_name, override_db = False)
+
 def raise_(s):
     raise RuntimeError(s)
 archive_processor = Arch_PROC(config.ram_drive_path,
@@ -125,28 +126,45 @@ class ResultListBox:
     def __init__(self, database: BooKeeperDB):
         self.result_list = list()
         self.hash_list = list()
-        self.result_list_pos = 0
         self.result_hovered_pos = 0
         self.db = database
+        self.normal_color = (1.0, 0.8, 0.8, 1.0)
+        self.normal_color_2 = (0.8, 1.0, 0.8, 1.0)
 
     def draw(self):
         with imgui.begin_list_box("", -1, -1) as list_box:
             if list_box.opened:
                 pos = 0
+                last_hash=''
+                mark_type = True
+                normal_color = imgui.get_style_color_vec_4(imgui.COLOR_TEXT)
                 for i in self.result_list:
-                    opened, selected = imgui.selectable(i, pos == self.result_list_pos)
-                    if selected:
-                        self.result_list_pos = pos
+                    hash = self.hash_list[pos]
+                    if hash != last_hash:
+                        last_hash = hash
+                        mark_type = not mark_type
+
+                    if mark_type:
+                        imgui.push_style_color(imgui.COLOR_TEXT, *self.normal_color)
+                    else:
+                        imgui.push_style_color(imgui.COLOR_TEXT, *self.normal_color_2)
+
+                    imgui.selectable(i, pos == self.result_hovered_pos)
                     if imgui.is_item_hovered():
                         self.result_hovered_pos = pos
+
+                    imgui.pop_style_color()
+
                     pos += 1
 
+
     def do_search(self, query: str):
-        res, self.result_list, self.hash_list = self.db.search_books(query)
+        res, self.result_list, self.hash_list = self.db.search_books_in_cache(query)
+
 
     def get_active_item(self):
         if len(self.result_list):
-            return True, self.result_list[self.result_list_pos], self.hash_list[self.result_list_pos]
+            return True, self.result_list[self.result_hovered_pos], self.hash_list[self.result_hovered_pos]
         else:
             return False, '', ''
 
