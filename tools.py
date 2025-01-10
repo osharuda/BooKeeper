@@ -102,7 +102,7 @@ def is_ramdrive_mounted(path: str) -> bool:
     if not res:
         raise RuntimeError(f'Failed to run mount command: \ncode={code}\n{stdout}')
 
-    pattern = r'^tmpfs\s+on\s+' + path.replace('/', '\\/') + r'.*tmpfs.*$'
+    pattern = r'^\/dev\/loop\d+\s+on\s+' + path.replace('/', '\\/') + r'.*$'
     re_exp = re.compile(pattern, re.MULTILINE)
     m = re_exp.search(stdout)
     return bool(m)

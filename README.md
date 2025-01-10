@@ -22,19 +22,16 @@ sudo apt install tesseract-ocr-eng tesseract-ocr-osd tesseract-ocr-rus
 ```
 
 ## Installing and mounting RAM drive
-Unpacking archives requires some temporary storage. It's better to have a ram drive. Let's say you want 8G ramdrive by
-`/mnt/ramdrive` location:
+Unpacking archives requires some temporary storage. It's better to have a RAM drive for some reasons:
+* You hard drive will last longer. Excessive IO is not good for neither SSD not HDD drives.
+* There could be a problem with archives packed on Windows with non ASCII names. It might happen that such files names might violate POSIX limitation (NAME_MAX) which is typically 255 **bytes**, not characters. Windows uses UTF-16 to encode characters with two bytes per character, while UTF-8 use 1 byte for ASCII characters, but may use more bytes for a non-ASCII characters. In other words, the length of the file name is not easily predictable. Thus, some name may exceed this limit causing issues with extracting files from archive. The solution for this is to use NTFS for temporary RAM drive storage. 
 
-In order to make one run this:
-```
-sudo mkdir /mnt/ramdrive
-sudo mount -t tmpfs -o size=8g tmpfs /mnt/ramdrive
-```
 
-To unmount it:
+Ok, there is a simple script (`ramdrv.sh`) which creates required RAM drive. It is configured to create 8GB NTFS RAM disk by `/mnt/ramdrive` location. Change script if you want other settings.
+
+Just run this script. Warning it will require `sudo` permitions.
 ```
-sudo umount /mnt/ramdrive
-sudo rm -r /mnt/ramdrive
+sudo ./ramdrv.sh
 ```
 
 ## Configuration file
