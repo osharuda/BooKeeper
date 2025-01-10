@@ -24,6 +24,7 @@ from tools import *
 import re
 import shutil
 
+
 class Arch_PROC(Book_PROC):
     def __init__(self,
                  tmpdir: str,
@@ -205,7 +206,7 @@ class Arch_PROC(Book_PROC):
             Extracted file name
         """
 
-        res, code, stdout = run_shell_adv(['unzip', archive_name, inner_rel_path, f'-d', target_dir], print_stdout=False)
+        res, code, stdout = run_shell_adv(['unzip', archive_name, escape_path(inner_rel_path), f'-d', target_dir], print_stdout=False)
         if not res:
             raise RuntimeError(f'Failed to extract an archive {archive_name}({os.sep}{inner_rel_path}).\nError code: {code}\n{stdout}')
 

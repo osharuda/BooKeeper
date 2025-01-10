@@ -16,7 +16,6 @@
  """
 
 import subprocess
-from importlib.metadata import pass_none
 from typing import *
 import os
 import fcntl
@@ -187,3 +186,32 @@ def mark_search_results(s: str, search_re) -> str:
 
     return wrap_text(res, 250)
 
+db_escape_trans = str.maketrans({
+    "$": "\\$",
+    "!": "\\!",
+    "#": "\\#",
+    "&": "\\&",
+    "\"": "\\\"",
+    "'": "\\'",
+    "(": "\\(",
+    ")": "\\)",
+    "[": "\\[",
+    "]": "\\]",
+    "|": "\\|",
+    "<": "\\<",
+    ">": "\\>",
+    "`": "\\`",
+    "\\": "\\\\",
+    "\t": "\\\t",
+    " ": "\\ ",
+    "-": "\\-"
+})
+
+def escape_path(fn: str):
+    global db_escape_trans
+    parts = fn.split(os.sep)
+    fnl = list()
+    for p in parts:
+        fnl += [p.translate(db_escape_trans)]
+
+    return os.sep.join(fnl)
