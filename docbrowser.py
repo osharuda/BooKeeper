@@ -32,21 +32,9 @@ from database import BooKeeperDB
 from processors.proc_arch import Arch_PROC
 from processors.proc_base import BookInfo, BookFileType
 
-config = config_file.BooKeeperConfig(sys.argv[1])
-logger = logger.Logger(log_file=config.log_file_name, level=config.log_level)
-db = database.BooKeeperDB(db_file_name=config.db_file_name, override_db = False)
 
 def raise_(s):
     raise RuntimeError(s)
-archive_processor = Arch_PROC(config.ram_drive_path,
-                              config.language_option,
-                              config.delete_artifacts,
-                              lambda x,y : raise_('Invalid operation (on_scan_file)'),
-                              lambda x,y : raise_('Invalid operation (on_book_callback)'),
-                              lambda x,y,z : raise_('Invalid operation (on_archive_enter)'),
-                              lambda : raise_('Invalid operation (on_archive_leave)'),
-                              lambda x,y : raise_('Invalid operation (on_bad_callback)'),
-                              BookFileType.ARCH_7Z)
 
 
 class UserInterfaceMode (IntEnum):
@@ -74,8 +62,6 @@ Yet..."""
 
     def set_mode(self, mode: UserInterfaceMode):
         self.ui_mode = mode
-
-ui = UserInterfaceState()
 
 class MessageBox:
     def __init__(self, state: UserInterfaceState):
@@ -107,8 +93,6 @@ class MessageBox:
         else:
             self.close_message_box()
 
-ui.message_box = MessageBox(ui)
-
 class SearchBar:
     def __init__(self):
         self.last_query = ''
@@ -120,18 +104,23 @@ class SearchBar:
             on_query(query)
         pass
 
-ui.search_bar = SearchBar()
-
 class ResultListBox:
     def __init__(self, database: BooKeeperDB):
         self.result_list = list()
         self.hash_list = list()
+        self.text_data_list = list()
+        self.search_re = None
         self.result_hovered_pos = 0
+        self.last_clicked_pos = 0
         self.db = database
-        self.normal_color = (1.0, 0.8, 0.8, 1.0)
-        self.normal_color_2 = (0.8, 1.0, 0.8, 1.0)
+        self.normal_color = (1.0, 0.7, 0.7, 1.0)
+        self.normal_color_2 = (1.0, 1.0, 0.6, 1.0)
+        self.text_data = ''
 
     def draw(self):
+        imgui.input_text_multiline('text_data',
+                                   self.text_data)
+
         with imgui.begin_list_box("", -1, -1) as list_box:
             if list_box.opened:
                 pos = 0
@@ -149,9 +138,13 @@ class ResultListBox:
                     else:
                         imgui.push_style_color(imgui.COLOR_TEXT, *self.normal_color_2)
 
-                    imgui.selectable(i, pos == self.result_hovered_pos)
+                    imgui.selectable(i, pos == self.last_clicked_pos)
                     if imgui.is_item_hovered():
                         self.result_hovered_pos = pos
+
+                    if imgui.is_item_clicked():
+                        self.text_data = tools.mark_search_results(self.text_data_list[pos], self.search_re)
+                        self.last_clicked_pos = pos
 
                     imgui.pop_style_color()
 
@@ -159,18 +152,16 @@ class ResultListBox:
 
 
     def do_search(self, query: str):
-        res, self.result_list, self.hash_list = self.db.search_books_in_cache(query)
-
+        res, self.result_list, self.hash_list, self.text_data_list, self.search_re = self.db.search_books_in_cache(query)
 
     def get_active_item(self):
         if len(self.result_list):
-            return True, self.result_list[self.result_hovered_pos], self.hash_list[self.result_hovered_pos]
+            return True, self.result_list[self.result_hovered_pos], self.hash_list[self.result_hovered_pos], self.text_data_list[self.result_hovered_pos]
         else:
-            return False, '', ''
+            return False, '', '', ''
 
     def get_result_count(self):
         return len(self.result_list)
-ui.result_list_box = ResultListBox(database=db)
 
 class ContextMenu:
     def __init__(self, state: UserInterfaceState):
@@ -231,14 +222,13 @@ class ContextMenu:
 
             imgui.end_popup()
 
-ui.context_menu = ContextMenu(ui)
 
 def set_style():
     style = imgui.get_style()
     imgui.style_colors_classic(style)
 
 def on_open_book(ui: UserInterfaceState):
-    res, file_name, hash = ui.result_list_box.get_active_item()
+    res, file_name, hash, text_data = ui.result_list_box.get_active_item()
     if not res:
         return
     try:
@@ -256,7 +246,7 @@ Exception:
     return
 
 def on_report(ui: UserInterfaceState):
-    res, file_name, hash = ui.result_list_box.get_active_item()
+    res, file_name, hash, text_data = ui.result_list_box.get_active_item()
     if not res:
         return
 
@@ -275,12 +265,14 @@ def on_report(ui: UserInterfaceState):
 
 def draw_search_mode():
     global ui
+    global ram_drive_warning
     imgui.text('Search query:')
     imgui.same_line()
 
     imgui.push_item_width(-1)
     ui.search_bar.draw(lambda s: ui.result_list_box.do_search(s))
-    ui.result_list_box.draw()
+    if ui.result_list_box.get_result_count():
+        ui.result_list_box.draw()
     imgui.pop_item_width()
 
     if imgui.is_mouse_released(1):
@@ -291,6 +283,10 @@ def draw_search_mode():
         ('Report', lambda: on_report(ui))
     ])
 
+    if ram_drive_warning:
+        ui.message_box.show_message_box("Warning: RAM drive is not mounted.\nArchived books will fail to open.", "Warning")
+        ram_drive_warning = False
+
     ui.message_box.draw()
 
 def draw_report_mode():
@@ -298,10 +294,8 @@ def draw_report_mode():
     if imgui.button('Close'):
         ui.set_mode(UserInterfaceMode.UI_SEARCH_MODE)
 
-    res, file_name, hash = ui.result_list_box.get_active_item()
-    text = f"""Number of results: {ui.result_list_box.get_result_count()}
-{ui.report_text}
-"""
+    res, file_name, hash, text_data = ui.result_list_box.get_active_item()
+    text = f"""{ui.report_text}"""
     imgui.input_text_multiline('report', text, width=-1, height=-1, flags=imgui.INPUT_TEXT_READ_ONLY)
 
 def gui():
@@ -330,9 +324,12 @@ def gui():
 
 app_font = None
 window = None
+ram_drive_warning = True
 def main():
     global app_font
     global window
+    global ram_drive_warning
+    ram_drive_warning = not tools.is_ramdrive_mounted(config.ram_drive_path)
     imgui.create_context()
     window = impl_glfw_init()
     impl = GlfwRenderer(window)
@@ -390,4 +387,24 @@ def impl_glfw_init():
     return window
 
 if __name__ == "__main__":
+    config = config_file.BooKeeperConfig(sys.argv[1])
+    logger = logger.Logger(log_file=config.log_file_name, level=config.log_level)
+    db = database.BooKeeperDB(db_file_name=config.db_file_name, override_db=False)
+
+    ui = UserInterfaceState()
+    ui.message_box = MessageBox(ui)
+    ui.search_bar = SearchBar()
+    ui.result_list_box = ResultListBox(database=db)
+    ui.context_menu = ContextMenu(ui)
+
+    archive_processor = Arch_PROC(config.ram_drive_path,
+                                  config.language_option,
+                                  config.delete_artifacts,
+                                  lambda x, y: raise_('Invalid operation (on_scan_file)'),
+                                  lambda x, y: raise_('Invalid operation (on_book_callback)'),
+                                  lambda x, y, z: raise_('Invalid operation (on_archive_enter)'),
+                                  lambda: raise_('Invalid operation (on_archive_leave)'),
+                                  lambda x, y: raise_('Invalid operation (on_bad_callback)'),
+                                  BookFileType.ARCH_7Z)
+
     main()

@@ -15,12 +15,13 @@
     limitations under the License.
  """
 
-import os.path
-
 from processors.proc_arch import *
-from processors.proc_base import *
 from processors.proc_djvu import *
+from processors.proc_doc import *
+from processors.proc_fb2 import *
+from processors.proc_odt import *
 from processors.proc_pdf import *
+from processors.proc_rtf import *
 
 
 def init_processors(temp_dir: str,
@@ -35,6 +36,10 @@ def init_processors(temp_dir: str,
     processor_map = dict()
     processor_map[BookFileType.DJVU] = Djvu_PROC(temp_dir, lang_opt, delete_artifacts, on_book_callback, on_bad_book_callback)
     processor_map[BookFileType.PDF] = Pdf_PROC(temp_dir, lang_opt, delete_artifacts, on_book_callback, on_bad_book_callback)
+    processor_map[BookFileType.FB2] = Fb2_PROC(temp_dir, lang_opt, delete_artifacts, on_book_callback, on_bad_book_callback)
+    processor_map[BookFileType.DOCX] = Doc_PROC(temp_dir, lang_opt, delete_artifacts, on_book_callback, on_bad_book_callback)
+    processor_map[BookFileType.ODT] = Odt_PROC(temp_dir, lang_opt, delete_artifacts, on_book_callback, on_bad_book_callback)
+    processor_map[BookFileType.RTF] = Rtf_PROC(temp_dir, lang_opt, delete_artifacts, on_book_callback, on_bad_book_callback)
     processor_map[BookFileType.ARCH_TARGZ] = Arch_PROC(temp_dir, lang_opt, delete_artifacts, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_TARGZ)
     processor_map[BookFileType.ARCH_RAR] = Arch_PROC(temp_dir, lang_opt, delete_artifacts, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_RAR)
     processor_map[BookFileType.ARCH_ZIP] = Arch_PROC(temp_dir, lang_opt, delete_artifacts, on_scan_file, on_book_callback, on_archive_enter, on_archive_leave, on_bad_archive_callback, BookFileType.ARCH_ZIP)

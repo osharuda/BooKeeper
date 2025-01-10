@@ -16,6 +16,7 @@
  """
 
 import subprocess
+from importlib.metadata import pass_none
 from typing import *
 import os
 import fcntl
@@ -130,9 +131,9 @@ def get_file_hash(file_name: str) -> hash:
     h = hashlib.md5(open(file_name,'rb').read())
     return h.hexdigest()
 
-def read_text_file(fn: str) -> str:
+def read_text_file(fn: str, n = -1) -> str:
     with open(fn) as f:
-        return f.read()
+        return f.read(n)
 
 def split_file_name(file_name: str, known_exts: set[str]=None) -> tuple[str, str]:
     fn = os.path.basename(file_name)
@@ -173,4 +174,16 @@ def wrap_text(s: str, chars_per_line: int) -> str:
         row_cnt += 1
 
     return res
+
+def mark_search_results(s: str, search_re) -> str:
+    res = ''
+    i = search_re.finditer(s)
+    last_end = 0
+    for m in i:
+        b, e = m.span()
+        res += s[last_end:b] + s[b:e].upper()
+        last_end = e
+    res += s[last_end:]
+
+    return wrap_text(res, 250)
 

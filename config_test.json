@@ -6,7 +6,7 @@
   "log_file_name":   "bookeeper_test.log",
   "log_level":       "diagnostic",
   "language_option": "eng+rus",
-  "delete_artifacts": 1,
+  "delete_artifacts": 0,
   "delete_db_on_start": 1,
   "clear_ram_drive_on_start": 1
 }

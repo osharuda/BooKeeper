@@ -310,14 +310,18 @@ class BooKeeperDB:
         res = False
         file_list = list()
         hash_list = list()
+        text_data_list = list()
         s = s.lower()
 
+
         match_books = dict()
+        text_data_dict = dict()
         for h,t in self.book_cache:
             fr = re.findall(search_re, t)
             if fr:
-                rang = len(fr)
+                rang = float ( len(fr) * len(s) ) / float ( (len(t) + 1) )
                 match_books[h] = rang
+                text_data_dict[h] = t
 
         # Sort by rang
         sorted_match = sorted(match_books.items(), key=lambda kv: kv[1], reverse=True)
@@ -325,33 +329,13 @@ class BooKeeperDB:
         for h, n in sorted_match:
             res = True
             fl = self.file_name_cache[h]
-            hash_list = hash_list + [h] * len(fl)
+            cnt = len(fl)
+            hash_list = hash_list + [h] * cnt
             file_list = file_list + fl
+            t = text_data_dict[h]
+            text_data_list = text_data_list + [t] * cnt
 
-        return res, file_list, hash_list
-
-
-    def search_books(self, s: str):
-        data = list('')
-        hashes = list('')
-        res, mod_file_name = test_unicode_string(s)
-        if not res:
-            return False, data, hashes
-
-        query = f"""select file_name, hash from book_files where hash in 
-                         (select hash from books where
-                              lower(books.text_data) like '%{self.escape_string(s)}%');"""
-
-        try:
-            with contextlib.closing(self.connection.cursor()) as cursor:
-                query_res = cursor.execute(query).fetchall()
-                data = list(list(zip(*query_res))[0])
-                hashes = list(list(zip(*query_res))[1])
-                res = True
-        except Exception as e:
-            res = False
-
-        return res, data, hashes
+        return res, file_list, hash_list, text_data_list, search_re
 
 
     def get_book_info(self, hash: str):

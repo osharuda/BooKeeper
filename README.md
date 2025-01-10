@@ -1,7 +1,7 @@
 # BooKeeper
 
 This small script is intended to scan your directory with documents and get meaningfull information required to organize your documents. 
-* Supported document files are DJVU and PDF.
+* Supported document file types are PDF, DJVU, FB2, RTF, DOCX, ODT.
 * Recursive archive (zip, rar, 7z, tar.gz) scanning is supported.
 
 Data is saved into sqlite3 database.
@@ -13,7 +13,7 @@ The following packages are required:
 ```
 # Install required packages
 sudo apt update
-sudo apt install python3 python3-venv sqlite3 poppler-utils djvulibre-bin imagemagick unzip unrar 7zip tesseract-ocr
+sudo apt install python3 python3-venv sqlite3 poppler-utils djvulibre-bin imagemagick unzip unrar 7zip tesseract-ocr pandoc pandoc-data
 ```
 
 It is recommended to install language support packages for tesseract-ocr. For example:

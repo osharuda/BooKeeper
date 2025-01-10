@@ -28,7 +28,7 @@ class BookFileType(IntEnum):
     NONE = 0
     DJVU = 1
     PDF = 2
-    DOC = 3
+    DOCX = 3
     RTF = 4
     TXT = 5
     FB2 = 6
@@ -36,6 +36,8 @@ class BookFileType(IntEnum):
     ARCH_RAR = 8
     ARCH_ZIP = 9
     ARCH_7Z = 10
+    ODT = 11
+    DOC = 12
 
 book_archive_types = {BookFileType.ARCH_TARGZ, BookFileType.ARCH_7Z, BookFileType.ARCH_ZIP, BookFileType.ARCH_RAR}
 
@@ -103,10 +105,15 @@ class Book_PROC(ABC):
     def extract_text(self, file_name: str, max_page: int) -> tuple[str, bool]:
         raw_text = ''
         ocr = False
-        for i in range(0, self.max_page):
-            t, page_ocr = self.get_page_text(file_name, i, max_page)
-            ocr = ocr or page_ocr
-            raw_text = raw_text + ' ' + t
+
+        if max_page < 0:
+            # Page is not applicable
+            raw_text = self.get_page_text_layer(file_name, -1, -1)
+        else:
+            for i in range(0, self.max_page):
+                t, page_ocr = self.get_page_text(file_name, i, max_page)
+                ocr = ocr or page_ocr
+                raw_text = raw_text + ' ' + t
 
         raw_text = self.raw_text_filter(raw_text)
         if len(raw_text) > self.max_text_data_len:
@@ -165,6 +172,19 @@ class Book_PROC(ABC):
 
         return sep.join(wl)
 
+    def get_pandoc_text(self, file_name: str, type_switch) -> str:
+        out_name = os.path.join(self.temp_dir, f'{os.path.basename(file_name)}.txt')
+        res, code, stdout = run_shell_adv(['pandoc', '--from', type_switch, '--to', 'plain', f'{file_name}', '-o', out_name],
+                                          print_stdout=False)
+        if res is False:
+            raise RuntimeError(f'Failed to convert {type_switch} to text. pandoc returned error: {code}\n{stdout}')
+
+        res = read_text_file(out_name, self.max_text_data_len * 2).strip()
+        if self.delete_artifacts:
+            os.unlink(out_name)
+
+        return res
+
     def ocr_text(self, image_file_name: str) -> str:
         uniq_name = str(threading.current_thread().native_id)
         base_name = os.path.join(self.temp_dir, f'{uniq_name}')
@@ -202,10 +222,11 @@ class Book_PROC(ABC):
         return res
 
 
-book_extensions = { # BookFileType.DOC : {'.doc', '.docx', '.odt'},
-                    # BookFileType.RTF : {'.rtf'},
+book_extensions = { BookFileType.DOCX : {'.docx'},
+                    BookFileType.ODT : {'.odt'},
+                    BookFileType.RTF : {'.rtf'},
                     # BookFileType.TXT : {'.txt'},
-                    # BookFileType.FB2 : {'.fb2'}
+                    BookFileType.FB2 : {'.fb2'},
                     BookFileType.ARCH_TARGZ : {'.tar.gz'},
                     BookFileType.ARCH_RAR : {'.rar', '.RAR', 'Rar'},
                     BookFileType.ARCH_ZIP : {'.zip', '.ZIP', '.Zip'},
