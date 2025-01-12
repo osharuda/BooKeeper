@@ -24,15 +24,6 @@ from tools import *
 from logger import *
 import sys
 
-# Paths
-#ram_drive_path = '/mnt/ramdrive'
-#log_file = '/mnt/SHARE/bookeeper/scan.log'
-#db_file_name = "bookgroomer.db"
-
-#library_path   = '/media/oleg/DATA/Books'
-#library_path   = '/mnt/SHARE/bookeeper/test'
-#language_option = 'eng+rus'
-
 config = BooKeeperConfig(sys.argv[1])
 logger = Logger(log_file=config.log_file_name, level=config.log_level)
 

@@ -35,6 +35,7 @@ class BooKeeperConfig:
                 self.delete_artifacts = bool(result.get('delete_artifacts', 1))
                 self.delete_db_on_start = bool(result.get('delete_db_on_start', 0))
                 self.clear_ram_drive_on_start = bool(result.get('clear_ram_drive_on_start', 0))
+                self.export_path = result['export_path']
         except Exception as e:
             print(f'Failed to load configuration file: {config_file_name}')
             print(str(e))

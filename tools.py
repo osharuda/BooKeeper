@@ -215,3 +215,12 @@ def escape_path(fn: str):
         fnl += [p.translate(db_escape_trans)]
 
     return os.sep.join(fnl)
+
+
+def check_paths(pl: list[str]) -> list[str]:
+    res = list()
+    for p in pl:
+        if not os.path.isdir(p):
+            res.append(p)
+
+    return res

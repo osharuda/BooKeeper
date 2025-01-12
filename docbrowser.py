@@ -14,7 +14,8 @@
     See the License for the specific language governing permissions and
     limitations under the License.
  """
-
+import os.path
+import shutil
 from collections.abc import Callable
 from enum import IntEnum
 from imgui.integrations.glfw import GlfwRenderer
@@ -25,7 +26,7 @@ import sys
 import subprocess
 
 import logger
-import config_file
+from config_file import BooKeeperConfig
 import database
 import tools
 from database import BooKeeperDB
@@ -42,7 +43,7 @@ class UserInterfaceMode (IntEnum):
     UI_REPORT_MODE = 1
 
 class UserInterfaceState:
-    def __init__(self):
+    def __init__(self, config: BooKeeperConfig):
         self.message_box = None
         self.result_list_box = None
         self.search_bar = None
@@ -51,10 +52,8 @@ class UserInterfaceState:
         self.main_window_width = -1
         self.main_window_height = -1
         self.ui_mode = UserInterfaceMode.UI_SEARCH_MODE
-        self.report_text = """
-This is report text, 
-I don't know what to place here
-Yet..."""
+        self.report_text = ''
+        self.config = config
 
     def update(self):
         self.main_window_width, self.main_window_height = imgui.get_window_size()
@@ -245,6 +244,25 @@ Exception:
 
     return
 
+def on_export_book(ui: UserInterfaceState):
+    res, file_name, hash, text_data = ui.result_list_box.get_active_item()
+    if not res:
+        return
+    try:
+        extracted_file = archive_processor.unpack_file(file_name)
+        shutil.move(extracted_file, ui.config.export_path)
+    except Exception as e:
+        ui.report_text = f"""Failed to process file:
+{file_name}
+
+Exception:
+{str(e)}
+"""
+        ui.set_mode(UserInterfaceMode.UI_REPORT_MODE)
+
+    return
+
+
 def on_report(ui: UserInterfaceState):
     res, file_name, hash, text_data = ui.result_list_box.get_active_item()
     if not res:
@@ -266,6 +284,8 @@ def on_report(ui: UserInterfaceState):
 def draw_search_mode():
     global ui
     global ram_drive_warning
+    global bad_lib_paths
+    global export_path_warning
     imgui.text('Search query:')
     imgui.same_line()
 
@@ -280,12 +300,23 @@ def draw_search_mode():
 
     ui.context_menu.draw([
         ('Open', lambda: on_open_book(ui)),
+        ('Export', lambda: on_export_book(ui)),
         ('Report', lambda: on_report(ui))
     ])
 
     if ram_drive_warning:
         ui.message_box.show_message_box("Warning: RAM drive is not mounted.\nArchived books will fail to open.", "Warning")
         ram_drive_warning = False
+
+    if len(export_path_warning):
+        warn_text = "Warning: Export path is not accessible.\nExport function will not work.\n" + export_path_warning
+        ui.message_box.show_message_box(warn_text, "Warning")
+        export_path_warning = ''
+
+    if bad_lib_paths:
+        warn_text = "Warning: Some libraries are not accessible:\n" + "\n".join(bad_lib_paths)
+        ui.message_box.show_message_box(warn_text, "Warning")
+        bad_lib_paths.clear()
 
     ui.message_box.draw()
 
@@ -325,11 +356,17 @@ def gui():
 app_font = None
 window = None
 ram_drive_warning = True
+export_path_warning = ''
+bad_lib_paths = []
 def main():
     global app_font
     global window
     global ram_drive_warning
+    global bad_lib_paths
+    global export_path_warning
     ram_drive_warning = not tools.is_ramdrive_mounted(config.ram_drive_path)
+    bad_lib_paths = tools.check_paths(config.libraries)
+    export_path_warning = '' if os.path.isdir(config.export_path) else config.export_path
     imgui.create_context()
     window = impl_glfw_init()
     impl = GlfwRenderer(window)
@@ -387,11 +424,11 @@ def impl_glfw_init():
     return window
 
 if __name__ == "__main__":
-    config = config_file.BooKeeperConfig(sys.argv[1])
+    config = BooKeeperConfig(sys.argv[1])
     logger = logger.Logger(log_file=config.log_file_name, level=config.log_level)
     db = database.BooKeeperDB(db_file_name=config.db_file_name, override_db=False)
 
-    ui = UserInterfaceState()
+    ui = UserInterfaceState(config)
     ui.message_box = MessageBox(ui)
     ui.search_bar = SearchBar()
     ui.result_list_box = ResultListBox(database=db)

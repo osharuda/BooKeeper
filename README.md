@@ -51,15 +51,16 @@ You have to prepare configuration file as JSON file to run script. Below is a co
 
 The table below describes available options:
 
-| Name                  | Value |
-|:----------------------|:------------------|
-| `"ram_drive_path"`    | Path to the directory with mounted RAM drive |
-| `"libraries"`         | List of the path's with your documents. |
-| `"work_path"`         | Path where do you want to keep results (database and log file) |
-| `"db_file_name"`      | Name of the database file (just a basename without path) |
-| `"log_file_name"`     | Name of the log file (just a basename without path) |
-| `"log_level"`         | Log level. Available values are: `Diagnostic`, `Log`, `Warning`, `Error`.|
-| `"language_option"`   | Language option for tesseract. See `man tesseract`, `-l` option. |
+| Name                  | Value                                                                                |
+|:----------------------|:-------------------------------------------------------------------------------------|
+| `"ram_drive_path"`    | Path to the directory with mounted RAM drive                                         |
+| `"libraries"`         | List of the path's with your documents.                                              |
+| `"work_path"`         | Path where do you want to keep results (database and log file)                       |
+| `"export_path"`       | Path where do you want to export books from you library, when you search for a book. |
+| `"db_file_name"`      | Name of the database file (just a basename without path)                             |
+| `"log_file_name"`     | Name of the log file (just a basename without path)                                  |
+| `"log_level"`         | Log level. Available values are: `Diagnostic`, `Log`, `Warning`, `Error`.            |
+| `"language_option"`   | Language option for tesseract. See `man tesseract`, `-l` option.                     |
 
 
 
