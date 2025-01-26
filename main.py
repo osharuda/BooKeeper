@@ -14,9 +14,7 @@
     See the License for the specific language governing permissions and
     limitations under the License.
  """
-import os.path
-import shutil
-
+import cProfile
 from config_file import BooKeeperConfig
 from database import *
 from scanner import Scanner
@@ -24,26 +22,31 @@ from tools import *
 from logger import *
 import sys
 
-config = BooKeeperConfig(sys.argv[1])
-logger = Logger(log_file=config.log_file_name, level=config.log_level)
 
-if not is_ramdrive_mounted(config.ram_drive_path):
-    logger.print_err(f'ERROR: Ram drive "{config.ram_drive_path}" is not mounted.')
-    quit(1)
-elif config.clear_ram_drive_on_start:
-    for p in glob.glob(os.path.join(config.ram_drive_path, '*')):
-        if os.path.isdir(p):
-            shutil.rmtree(p)
-        elif os.path.isfile(p):
-            os.unlink(p)
+if __name__ == "__main__":
+    config = BooKeeperConfig(sys.argv[1])
+    logger = Logger(log_file=config.log_file_name, level=config.log_level)
 
-db = BooKeeperDB(db_file_name=config.db_file_name, override_db = config.delete_db_on_start)
+    if not is_ramdrive_mounted(config.ram_drive_path):
+        logger.print_err(f'ERROR: Ram drive "{config.ram_drive_path}" is not mounted.')
+        quit(1)
+    elif config.clear_ram_drive_on_start:
+        for p in glob.glob(os.path.join(config.ram_drive_path, '*')):
+            if os.path.isdir(p):
+                shutil.rmtree(p)
+            elif os.path.isfile(p):
+                os.unlink(p)
 
-for lp in config.libraries:
-    logger.print_log(f'[LIBRARY] {lp}')
-    scanner = Scanner(library_path=lp,
-                      ram_drive_path=config.ram_drive_path,
-                      language_option=config.language_option,
-                      delete_artifacts=config.delete_artifacts)
-    scanner.scan()
+    db = BooKeeperDB(db_file_name=config.db_file_name,
+                     ram_drive_db=config.ram_drive_db,
+                     override_db = config.delete_db_on_start)
+
+    for lp in config.libraries:
+        logger.print_log(f'[LIBRARY] {lp}')
+        scanner = Scanner(library_path=lp,
+                          ram_drive_path=config.ram_drive_path,
+                          language_option=config.language_option,
+                          delete_artifacts=config.delete_artifacts)
+        cProfile.run("scanner.scan()", "scanstats")
+    db.finalize()
 

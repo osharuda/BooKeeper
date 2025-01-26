@@ -16,7 +16,6 @@
  """
 
 import os.path
-from tools import *
 from processors.proc_base import *
 
 

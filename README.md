@@ -13,7 +13,7 @@ The following packages are required:
 ```
 # Install required packages
 sudo apt update
-sudo apt install python3 python3-venv sqlite3 poppler-utils djvulibre-bin imagemagick unzip unrar 7zip tesseract-ocr pandoc pandoc-data
+sudo apt install python3 python3-venv sqlite3 poppler-utils djvulibre-bin imagemagick unzip unrar 7zip tesseract-ocr pandoc pandoc-data catdoc
 ```
 
 It is recommended to install language support packages for tesseract-ocr. For example:
@@ -110,6 +110,7 @@ CREATE TABLE book_files(
     file_name string,
     archive_hash string,
     hash string,
+    status int,
     foreign key(archive_hash) references archives(hash),
     foreign key(hash) references books(hash)
 );
@@ -125,6 +126,7 @@ CREATE TABLE archive_files(
     file_name string,
     hash string,
     parent_arch_hash string,
+    status int,
     foreign key(parent_arch_hash) references archives(hash),
     foreign key(hash) references archives(hash)
 );
@@ -135,6 +137,25 @@ CREATE TABLE bad_files(
     file_type int,
     hash string,
     archive_hash string,
+    error_code int,
+    status int,
     foreign key(archive_hash) references archives(hash)
 );
+
+CREATE TABLE other_paths( 
+    id integer primary key,
+    path string,
+    status int
+);
+
+CREATE TABLE other_files( 
+    id integer primary key,
+    path_id int,
+    basename string,
+    size sqlite_int64,
+    hash string,
+    status int,
+    foreign key(path_id) references other_paths(id)
+);
+
 ```

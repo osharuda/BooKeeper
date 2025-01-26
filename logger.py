@@ -17,9 +17,8 @@
 
 import os
 from enum import IntEnum
-from os import linesep
-
 from termcolor import colored
+
 
 class LoggerLevel(IntEnum):
     Diagnostic = 0
@@ -31,8 +30,10 @@ class LoggerLevel(IntEnum):
     def list(cls):
         return list(map(lambda c: c.name, cls))
 
+
 class Logger(object):
     _instance = None
+
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -43,6 +44,7 @@ class Logger(object):
 
     def __del__(self):
         self.print_diagnostic('Logger destroyed.', console_only=True)
+
 
     def initialize(self, log_file: str, level):
         if type(level) == LoggerLevel:
@@ -64,9 +66,11 @@ class Logger(object):
             os.unlink(log_file)
         self.print_diagnostic(f'Logger created. Log file: {log_file}', console_only=True)
 
+
     def write_log(self, s, linesep=os.linesep):
         with open(self.log_file, "a") as f:
             f.write(s + linesep)
+
 
     def print_diagnostic(self, s, console_only=False, options=None, linesep=os.linesep):
         if options is None:
@@ -77,6 +81,7 @@ class Logger(object):
             if not console_only and self.log_file:
                 self.write_log(s, linesep=linesep)
 
+
     def print_log(self, s, console_only=False, options=None, linesep=os.linesep):
         if options is None:
             options = ('white',)
@@ -85,6 +90,7 @@ class Logger(object):
             print(colored(s, *options), end=linesep)
             if not console_only and self.log_file:
                 self.write_log(s, linesep=linesep)
+
 
     def print_warn(self, s, console_only=False, options=None, linesep=os.linesep):
         if options is None:
@@ -95,9 +101,10 @@ class Logger(object):
             if not console_only and self.log_file:
                 self.write_log(s, linesep=linesep)
 
+
     def print_err(self, s, console_only=False, options=None, linesep=os.linesep):
         if options is None:
-            options = ('black', 'on_red')
+            options = ('red', )
 
         if self.level <= LoggerLevel.Error:
             print(colored(s, *options), end=linesep)

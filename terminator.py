@@ -15,11 +15,12 @@
     limitations under the License.
  """
 
-import signal
-from logger import Logger
+from database import *
+
 
 class Terminator(object):
     _instance = None
+
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -28,29 +29,36 @@ class Terminator(object):
             cls._instance.initialize()
         return cls._instance
 
+
     def __del__(self):
         signal.signal(signal.SIGINT, self.old_handler)
         self.logger.print_diagnostic('Terminator destroyed.', console_only=True)
+
 
     @staticmethod
     def terminator_signal_handler(sig, frame):
         t = Terminator()
         t.set_signal()
 
+
     def set_signal(self):
         self.exit_requested = True
 
+
     def initialize(self):
         self.logger = Logger()
+        self.db = BooKeeperDB()
         self.exit_requested = False
         self.old_handler = signal.getsignal(signal.SIGINT)
         signal.signal(signal.SIGINT, Terminator.terminator_signal_handler)
         self.logger.print_diagnostic('Terminator created.', console_only=True)
 
+
     def check_exit(self):
         while self.exit_requested:
             reply = input('Are you sure to exit? [Y/N] : ')
             if reply.lower() == 'y':
+                self.db.finalize()
                 self.logger.print_log('Program terminated due to user request. Bye!')
                 quit(0)
             elif reply.lower() == 'n':

@@ -16,12 +16,9 @@
  """
 
 import os.path
-from email.message import Message
 from os.path import basename
-
 from processors.proc_base import *
 from tools import *
-import re
 import shutil
 
 
@@ -94,7 +91,6 @@ class Arch_PROC(Book_PROC):
         elif levels == 1:
             return archive_hierarchy[0]
 
-
         arch = archive_hierarchy[0]
         last_archive = arch
         extract_dirs = list()
@@ -105,8 +101,6 @@ class Arch_PROC(Book_PROC):
             last_archive = fn
             extract_path = self.make_tmp_dir()
             extract_dirs.append(extract_path)
-            print(arch)
-
             arch = self.unpack_file_no_recursive_archives(os.path.join(arch, rel_name), extract_path)
 
         # Move to the root of the ram drive
@@ -131,8 +125,8 @@ class Arch_PROC(Book_PROC):
         """
         Unpacks single file from archive without recursion.
         Args:
-            archive_name:
-            exract_path:
+            logical_file_name: logical archive name
+            extract_path: path to extract an archive
 
         Returns:
         """
@@ -296,11 +290,11 @@ class Arch_PROC(Book_PROC):
         if not res:
             raise RuntimeError(f'Failed to extract an archive {file_name}.\nError code: {code}\n{stdout}')
 
-    @staticmethod
-    def add_write_perm_to_dir(path: str):
+    def add_write_perm_to_dir(self, path: str):
         res, code, stdout = run_shell_adv(['chmod', f'-R', f'+w', path], print_stdout=False)
         if not res:
-            print(f'Failed set permissions for {path}.\nError code: {code}\n{stdout}')
+            self.logger.print_error(f'Failed set permissions for {path}.\nError code: {code}\n{stdout}')
+
 
     def process_file(self, file_name: str, file_hash: str):
         location_dir = os.path.dirname(file_name)

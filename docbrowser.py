@@ -46,7 +46,7 @@ class UserInterfaceState:
     def __init__(self, config: BooKeeperConfig):
         self.message_box = None
         self.result_list_box = None
-        self.search_bar = None
+        self.search_bar_list = list()
         self.mouse_x = -1
         self.mouse_y = -1
         self.main_window_width = -1
@@ -61,6 +61,7 @@ class UserInterfaceState:
 
     def set_mode(self, mode: UserInterfaceMode):
         self.ui_mode = mode
+
 
 class MessageBox:
     def __init__(self, state: UserInterfaceState):
@@ -95,20 +96,56 @@ class MessageBox:
 class SearchBar:
     def __init__(self):
         self.last_query = ''
+        self.max_search_bars = 7
 
-    def draw(self, on_query: Callable[[str], None]):
-        res, query = imgui.input_text('', self.last_query, flags=imgui.INPUT_TEXT_ENTER_RETURNS_TRUE)
+    def update_text(self, cbdata):
+        if cbdata.event_flag != imgui.INPUT_TEXT_CALLBACK_ALWAYS:
+            return
+        self.last_query = cbdata.buffer
+
+    def draw(self, n: int,
+                   on_query: Callable[[None], None],
+                   on_remove: Callable[[int], None],
+                   on_add: Callable[[int], None]):
+        imgui.text('Search:')
+        imgui.same_line()
+
+        imgui.push_item_width(-80)
+        imgui.push_id(f'search_edit_{n}')
+        res, query = imgui.input_text('',
+                                      self.last_query,
+                                      callback=self.update_text,
+                                      flags=imgui.INPUT_TEXT_ENTER_RETURNS_TRUE |
+                                      imgui.INPUT_TEXT_CALLBACK_ALWAYS)
+        imgui.pop_id()
+        imgui.pop_item_width()
+
         if res:
-            self.last_query = query
-            on_query(query)
-        pass
+            on_query()
+
+        if n + 1 < self.max_search_bars:
+            imgui.same_line()
+            imgui.push_id(f'plus_btn_{n}')
+            if imgui.button('+'):
+                on_add(n)
+            imgui.pop_id()
+
+        if n > 0:
+            imgui.same_line()
+            imgui.push_id(f'minus_btn_{n}')
+            if imgui.button('-'):
+                on_remove(n)
+            imgui.pop_id()
+
+
+
+
 
 class ResultListBox:
     def __init__(self, database: BooKeeperDB):
         self.result_list = list()
         self.hash_list = list()
         self.text_data_list = list()
-        self.search_re = None
         self.result_hovered_pos = 0
         self.last_clicked_pos = 0
         self.db = database
@@ -142,7 +179,7 @@ class ResultListBox:
                         self.result_hovered_pos = pos
 
                     if imgui.is_item_clicked():
-                        self.text_data = tools.mark_search_results(self.text_data_list[pos], self.search_re)
+                        self.text_data = self.text_data_list[pos]
                         self.last_clicked_pos = pos
 
                     imgui.pop_style_color()
@@ -150,8 +187,9 @@ class ResultListBox:
                     pos += 1
 
 
-    def do_search(self, query: str):
-        res, self.result_list, self.hash_list, self.text_data_list, self.search_re = self.db.search_books_in_cache(query)
+    def do_search(self, queries: list[str]):
+        res, self.result_list, self.hash_list, self.text_data_list = self.db.search_books_in_cache(queries)
+        pass
 
     def get_active_item(self):
         if len(self.result_list):
@@ -262,7 +300,6 @@ Exception:
 
     return
 
-
 def on_report(ui: UserInterfaceState):
     res, file_name, hash, text_data = ui.result_list_box.get_active_item()
     if not res:
@@ -281,16 +318,35 @@ def on_report(ui: UserInterfaceState):
         ui.report_text = tools.wrap_text(bi.to_report(), 150)
         ui.set_mode(UserInterfaceMode.UI_REPORT_MODE)
 
+def do_search():
+    global ui
+    queries = list()
+    for sb in ui.search_bar_list:
+        queries.append(sb.last_query)
+    ui.result_list_box.do_search(queries)
+
+def add_search(n: int):
+    global ui
+    if len(ui.search_bar_list) < ui.search_bar_list[n].max_search_bars:
+        ui.search_bar_list.insert(n + 1, SearchBar())
+
+def remove_search(n: int):
+    if len(ui.search_bar_list) > 1:
+        ui.search_bar_list.pop(n)
+
+
 def draw_search_mode():
     global ui
     global ram_drive_warning
     global bad_lib_paths
     global export_path_warning
-    imgui.text('Search query:')
-    imgui.same_line()
+
+    n = 0
+    for sb in ui.search_bar_list:
+        sb.draw(n, do_search, remove_search, add_search)
+        n += 1
 
     imgui.push_item_width(-1)
-    ui.search_bar.draw(lambda s: ui.result_list_box.do_search(s))
     if ui.result_list_box.get_result_count():
         ui.result_list_box.draw()
     imgui.pop_item_width()
@@ -426,11 +482,13 @@ def impl_glfw_init():
 if __name__ == "__main__":
     config = BooKeeperConfig(sys.argv[1])
     logger = logger.Logger(log_file=config.log_file_name, level=config.log_level)
-    db = database.BooKeeperDB(db_file_name=config.db_file_name, override_db=False)
+    db = database.BooKeeperDB(db_file_name=config.db_file_name,
+                              ram_drive_db=False,
+                              override_db=False)
 
     ui = UserInterfaceState(config)
     ui.message_box = MessageBox(ui)
-    ui.search_bar = SearchBar()
+    ui.search_bar_list.append(SearchBar())
     ui.result_list_box = ResultListBox(database=db)
     ui.context_menu = ContextMenu(ui)
 
@@ -445,3 +503,5 @@ if __name__ == "__main__":
                                   BookFileType.ARCH_7Z)
 
     main()
+
+    db.finalize()

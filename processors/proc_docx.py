@@ -19,7 +19,7 @@ import os.path
 from processors.proc_base import *
 
 
-class Doc_PROC(Book_PROC):
+class Docx_PROC(Book_PROC):
     def __init__(self,
                  tmpdir: str,
                  lang_opt: str,
@@ -31,7 +31,7 @@ class Doc_PROC(Book_PROC):
 
     def process_file(self, file_name: str, file_hash: str):
         info = BookInfo()
-        info.book_type = BookFileType.DOC
+        info.book_type = BookFileType.DOCX
         info.name = self.process_book_name(file_name)
         info.size = os.path.getsize(file_name)
         info.hash_value = file_hash
@@ -45,4 +45,4 @@ class Doc_PROC(Book_PROC):
 
 
     def get_page_text_layer(self, file_name: str, page: int, page_num: int) -> str:
-        return self.get_catdoc_text(file_name)
+        return self.get_pandoc_text(file_name, 'docx')

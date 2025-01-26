@@ -24,9 +24,11 @@ import glob
 import hashlib
 import signal
 
+
 def set_nonblock_io(f):
     flags = fcntl.fcntl(f, fcntl.F_GETFL)
     return fcntl.fcntl(f, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
 
 def read_stdout_lines(proc: subprocess.Popen, print_data: False) -> str:
     result = str()
@@ -36,6 +38,7 @@ def read_stdout_lines(proc: subprocess.Popen, print_data: False) -> str:
     if print_data:
         print(result)
     return result
+
 
 def run_shell_adv(  params : list,
                     cwd=None,
@@ -106,10 +109,12 @@ def is_ramdrive_mounted(path: str) -> bool:
     m = re_exp.search(stdout)
     return bool(m)
 
+
 def check_djvused_available():
     res, code, stdout = run_shell_adv(['djvused'])
     if res == False:
         raise RuntimeError("djvused doesn't work, install djvulibre-bin package.")
+
 
 def scan_directory( search_dir: str,
                     scan_param = None,
@@ -126,13 +131,16 @@ def scan_directory( search_dir: str,
             on_directory(fn, scan_param)
     pass
 
+
 def get_file_hash(file_name: str) -> hash:
     h = hashlib.md5(open(file_name,'rb').read())
     return h.hexdigest()
 
+
 def read_text_file(fn: str, n = -1) -> str:
     with open(fn) as f:
         return f.read(n)
+
 
 def split_file_name(file_name: str, known_exts: set[str]=None) -> tuple[str, str]:
     fn = os.path.basename(file_name)
@@ -141,22 +149,24 @@ def split_file_name(file_name: str, known_exts: set[str]=None) -> tuple[str, str
     if known_exts:
         for e in known_exts:
             el = len(e)
-            if fnl >= el and fn[fnl-el:]==e:
+            if fnl >= el and fn[fnl-el:].lower()==e:
                 ext = fn[fnl-el:]
                 fn = fn[:fnl-el]
                 break
     else:
         ext = ''
-        first_dot = fn.find('.')
-        if first_dot >= 0:
-            ext = fn[first_dot:]
-            fn = fn[0:first_dot]
+        last_dot = fn.rfind('.')
+        if last_dot >= 0:
+            ext = fn[last_dot:]
+            fn = fn[0:last_dot]
 
     return fn, ext
+
 
 def test_unicode_string(s: str):
     t = s.encode('utf-8', errors='ignore').decode('utf-8')
     return s == t, t
+
 
 def wrap_text(s: str, chars_per_line: int) -> str:
     res = ''
@@ -174,6 +184,7 @@ def wrap_text(s: str, chars_per_line: int) -> str:
 
     return res
 
+
 def mark_search_results(s: str, search_re) -> str:
     res = ''
     i = search_re.finditer(s)
@@ -185,6 +196,7 @@ def mark_search_results(s: str, search_re) -> str:
     res += s[last_end:]
 
     return wrap_text(res, 250)
+
 
 db_escape_trans = str.maketrans({
     "$": "\\$",
@@ -206,6 +218,7 @@ db_escape_trans = str.maketrans({
     " ": "\\ ",
     "-": "\\-"
 })
+
 
 def escape_path(fn: str):
     global db_escape_trans

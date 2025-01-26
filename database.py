@@ -14,13 +14,19 @@
     See the License for the specific language governing permissions and
     limitations under the License.
  """
-import operator
+import shutil
 import sqlite3
 import contextlib
 from processors.proc_base import *
 from processors.processors import BookInfo
 from logger import *
 import re
+
+class FileErrorCode(IntEnum):
+    ERROR_BAD_FILE_NAME = -100
+    ERROR_BAD_BOOK = -101
+    ERROR_BAD_ARCHIVE = -102
+
 
 class BooKeeperDB:
     _instance = None
@@ -31,25 +37,59 @@ class BooKeeperDB:
             cls._instance.db_file_name = None
             cls._instance.connection = None
             cls._instance.logger = None
-            cls._instance.initialize(kwargs['db_file_name'], kwargs['override_db'])
+            cls._instance.initialize(kwargs['db_file_name'], kwargs['ram_drive_db'], kwargs['override_db'])
         return cls._instance
 
+
     def __del__(self):
+        if not self.finalized:
+            raise RuntimeError('Database is not finalized')
+
+
+    def finalize(self):
         self.close_db()
         self.logger.print_diagnostic(f'BooKeeperDB destroyed.', console_only=True)
 
+        if self.ram_drive_db:
+            self.logger.print_log("Copying database from RAM drive")
+            tmp_fn = self.db_file_name+'.bak'
+            if os.path.isfile(tmp_fn):
+                os.unlink(tmp_fn)
 
-    def initialize(self, db_file_name: str, override_db = False):
+            if os.path.isfile(self.db_file_name):
+                shutil.move(self.db_file_name, tmp_fn)
+
+            shutil.copy(self.ram_drive_db, self.db_file_name)
+
+            if os.path.isfile(tmp_fn):
+                os.unlink(tmp_fn)
+
+        self.logger.print_log("Database successfully closed.")
+        self.finalized = True
+
+
+    def initialize(self, db_file_name: str, ram_drive_db, override_db = False):
         self.logger = Logger()
         self.db_file_name = db_file_name
         self.db_escape_trans = str.maketrans({"'": "''"})
         self.book_cache = None
         self.file_name_cache = None
+        self.ram_drive_db = ram_drive_db
+        self.finalized = False
+        self.new_book_counter = 0
 
         if override_db and os.path.isfile(self.db_file_name):
             os.unlink(self.db_file_name)
 
-        self.connection = sqlite3.connect(self.db_file_name)
+        if self.ram_drive_db:
+            self.logger.print_log("Copying database to RAM drive")
+            if os.path.isfile(ram_drive_db):
+                os.unlink(self.ram_drive_db)
+            if os.path.isfile(self.db_file_name):
+                shutil.copy(self.db_file_name, self.ram_drive_db)
+
+        db_file = self.ram_drive_db if self.ram_drive_db else self.db_file_name
+        self.connection = sqlite3.connect(db_file)
         self.init_db()
         self.connection.commit()
         self.update_cache()
@@ -64,70 +104,135 @@ class BooKeeperDB:
                 return
 
             self.logger.print_diagnostic(f'Initializing db ...')
-            cursor.execute("""CREATE TABLE archives( hash string primary key,
-                                                  file_type int,
-                                                  size sqlite_int64);""")
+            cursor.execute("""CREATE TABLE archives( 
+hash string primary key,
+file_type int,
+size sqlite_int64
+);""")
 
-            cursor.execute("""CREATE TABLE archive_files( id integer primary key,
-                                                  file_name string,
-                                                  hash string,
-                                                  parent_arch_hash string,
-                                                  foreign key(parent_arch_hash) references archives(hash),
-                                                  foreign key(hash) references archives(hash));""")
+            cursor.execute("""CREATE TABLE archive_files( 
+id integer primary key,
+file_name string,
+hash string,
+parent_arch_hash string,
+status int,
+foreign key(parent_arch_hash) references archives(hash),
+foreign key(hash) references archives(hash)
+);""")
 
-            cursor.execute("""CREATE TABLE books(   hash string primary key,
-                                                    size sqlite_int64,
-                                                    ocr bool,
-                                                    booktype int,
-                                                    page_count int,
-                                                    text_data string,
-                                                    tokens string
-                                                  );""")
+            cursor.execute("""CREATE TABLE books( 
+hash string primary key,
+size sqlite_int64,
+ocr bool,
+booktype int,
+page_count int,
+text_data string,
+tokens string
+);""")
 
-            cursor.execute("""CREATE TABLE book_files( id integer primary key,
-                                                  file_name string,
-                                                  archive_hash string,
-                                                  hash string,
-                                                  foreign key(archive_hash) references archives(hash),
-                                                  foreign key(hash) references books(hash));""")
+            cursor.execute("""CREATE TABLE book_files( 
+id integer primary key,
+file_name string,
+archive_hash string,
+hash string,
+status int,
+foreign key(archive_hash) references archives(hash),
+foreign key(hash) references books(hash)
+);""")
 
 
-            cursor.execute("""CREATE TABLE bad_files( id int  primary key,
-                                                  file_name string,
-                                                  file_type int,
-                                                  hash string,
-                                                  archive_hash string,
-                                                  foreign key(archive_hash) references archives(hash));""")
+            cursor.execute("""CREATE TABLE bad_files( 
+id int  primary key,
+file_name string,
+file_type int,
+hash string,
+archive_hash string,
+error_code int,
+status int,
+foreign key(archive_hash) references archives(hash)
+);""")
+
+            cursor.execute("""CREATE TABLE other_paths( 
+id integer primary key,
+path string,
+status int
+);""")
+
+            cursor.execute("""CREATE TABLE other_files( 
+id integer primary key,
+path_id int,
+basename string,
+extension string,
+size sqlite_int64,
+hash string,
+status int,
+foreign key(path_id) references other_paths(id)
+);""")
+
+            cursor.execute("""create unique index indx_book_files_on_file_name on book_files(file_name);
+""")
+
+            cursor.execute("""create unique index indx_archive_files_on_file_name on archive_files(file_name);
+""")
+
+            cursor.execute("""create unique index indx_other_files_on_pid_bn on other_files(path_id, basename);
+""")
+
+            cursor.execute("""create unique index indx_other_paths_path on other_paths(path);
+""")
 
         self.connection.commit()
+
 
     def close_db(self):
-        self.connection.commit()
+        #self.connection.commit()
         self.connection.close()
+
 
     def escape_string(self, s: str):
         return s.translate(self.db_escape_trans)
 
-    def add_bad_file(self,
-                     file_name: str,
-                     file_hash: str,
-                     file_type: BookFileType,
-                     parent_arch_hash: str):
+
+    def add_update_bad_file(self,
+                            file_name: str,
+                            file_hash: str,
+                            file_type: BookFileType,
+                            parent_arch_hash: str,
+                            error_code: FileErrorCode):
+
+        if not parent_arch_hash:
+            parent_arch = "NULL"
+        else:
+            parent_arch = f"'{parent_arch_hash}'"
+
+        do_update = self.is_bad_file(file_name)
+        if do_update:
+            query = f"""update bad_files 
+set
+file_type = {int(file_type)},
+hash = '{file_hash}',
+archive_hash = {parent_arch},
+error_code = {error_code},
+status = 0
+where
+file_name = '{self.escape_string(file_name)}'
+"""
+        else:
+            query = f"""insert into bad_files (file_name, file_type, hash, archive_hash, error_code, status)
+values( 
+'{self.escape_string(file_name)}',
+{int(file_type)},
+'{file_hash}',
+{parent_arch},
+{error_code},
+0);"""
+
         with contextlib.closing(self.connection.cursor()) as cursor:
             try:
-                if not parent_arch_hash:
-                    parent_arch = "NULL"
-                else:
-                    parent_arch = f"'{parent_arch_hash}'"
-                cursor.execute(f"""insert into bad_files (file_name, file_type, hash, archive_hash)
-                                                  values( '{self.escape_string(file_name)}',
-                                                           {int(file_type)},
-                                                          '{file_hash}',
-                                                           {parent_arch});""")
+                cursor.execute(query)
                 cursor.connection.commit()
             except sqlite3.Error as e:
-                raise RuntimeError(f'Failed to insert into bad_files.\n{e}')
-
+                raise RuntimeError(f'Failed to add/update into bad_files.\n{e}')
 
 
     def add_new_archive(self,
@@ -136,13 +241,14 @@ class BooKeeperDB:
                     file_hash: str,
                     parent_arch: str,
                     bft: BookFileType):
-        with contextlib.closing(self.connection.cursor()) as cursor:
-            try:
-                cursor.execute(f"""insert into archives (hash,          file_type, size)
-                                                  values('{file_hash}', {bft},     {file_size} );""")
-                cursor.connection.commit()
-            except sqlite3.Error as e:
-                raise RuntimeError(f'Failed to insert into archives.\n{e}')
+        if not self.is_processed_archive(file_hash):
+            with contextlib.closing(self.connection.cursor()) as cursor:
+                try:
+                    cursor.execute(f"""insert into archives (hash,          file_type, size)
+                                                      values('{file_hash}', {bft},     {file_size} );""")
+                    cursor.connection.commit()
+                except sqlite3.Error as e:
+                    raise RuntimeError(f'Failed to insert into archives.\n{e}')
 
         self.add_existing_archive(file_name, file_hash, parent_arch)
 
@@ -151,68 +257,117 @@ class BooKeeperDB:
                     file_name: str,
                     file_hash: str,
                     parent_arch_hash: str):
-        with contextlib.closing(self.connection.cursor()) as cursor:
-            try:
-                if not parent_arch_hash:
-                    parent_arch = "NULL"
+        escaped_file_name = self.escape_string(file_name)
+        try:
+            with contextlib.closing(self.connection.cursor()) as cursor:
+                query = f"""select id, status from archive_files where file_name='{escaped_file_name}' limit 1;"""
+                res = cursor.execute(query).fetchone()
+                if res:
+                    arch_id, status = res
+                    if status != 0:
+                        update_query = f"""update archive_files 
+    set 
+    status=0
+    where 
+    id={arch_id}
+    """
+                        cursor.execute(update_query)
                 else:
-                    parent_arch = f"'{parent_arch_hash}'"
-                cursor.execute(f"""insert into archive_files (file_name,     parent_arch_hash, hash)
-                                                       values('{self.escape_string(file_name)}', {parent_arch},    '{file_hash}');""")
-            except sqlite3.Error as e:
-                raise RuntimeError(f'Failed to insert into archive_files.\n{e}')
 
-            cursor.connection.commit()
+                        if not parent_arch_hash:
+                            parent_arch = "NULL"
+                        else:
+                            parent_arch = f"'{parent_arch_hash}'"
+                        cursor.execute(f"""insert into archive_files (file_name, parent_arch_hash, hash, status)
+                                                               values('{escaped_file_name}', {parent_arch}, '{file_hash}', 0);""")
+
+
+                cursor.connection.commit()
+        except sqlite3.Error as e:
+            raise RuntimeError(f'Failed to insert/update into archive_files.\n{e}')
 
 
     def add_new_book(self,
                     bi: BookInfo,
                     parent_arch_hash: str):
-        with contextlib.closing(self.connection.cursor()) as cursor:
-            try:
-                cursor.execute(f"""insert into books (hash, size, ocr, booktype, page_count, text_data, tokens)
-                                                      values('{bi.hash_value}', 
-                                                             {bi.size}, 
-                                                             {int(bi.ocr)}, 
-                                                             {bi.book_type}, 
-                                                             {bi.page_count}, 
-                                                             '{bi.text_data}',
-                                                             '');""")
+        if not self.is_processed_book(bi.hash_value):
+            with contextlib.closing(self.connection.cursor()) as cursor:
+                try:
+                    cursor.execute(f"""insert into books (hash, size, ocr, booktype, page_count, text_data, tokens)
+                                                          values('{bi.hash_value}', 
+                                                                 {bi.size}, 
+                                                                 {int(bi.ocr)}, 
+                                                                 {bi.book_type}, 
+                                                                 {bi.page_count}, 
+                                                                 '{bi.text_data}',
+                                                                 '');""")
 
-                cursor.connection.commit()
-            except sqlite3.Error as e:
-                raise RuntimeError(f'Failed to insert into books.\n{e}')
+                    cursor.connection.commit()
+                    self.new_book_counter += 1
+                except sqlite3.Error as e:
+                    raise RuntimeError(f'Failed to insert into books.\n{e}')
 
         self.add_existing_book(bi.name, bi.hash_value, parent_arch_hash)
-
-
 
 
     def add_existing_book(self,
                           file_name: str,
                           file_hash: str,
                           parent_arch_hash: str):
-        with contextlib.closing(self.connection.cursor()) as cursor:
-            try:
-                if not parent_arch_hash:
-                    parent_arch_hash = "NULL"
+        escaped_file_name = self.escape_string(file_name)
+        try:
+            with contextlib.closing(self.connection.cursor()) as cursor:
+                query = f"""select id, status from book_files where file_name='{escaped_file_name}' limit 1;"""
+                res = cursor.execute(query).fetchone()
+                if res:
+                    file_id, status = res
+                    if status != 0:
+                        update_query = f"""update book_files set status=0 where id={file_id}"""
+                        cursor.execute(update_query)
                 else:
-                    parent_arch_hash = f"'{parent_arch_hash}'"
-                cursor.execute(f"""insert into book_files (file_name, archive_hash, hash)
-                                                       values('{self.escape_string(file_name)}', {parent_arch_hash},    '{file_hash}');""")
-            except sqlite3.Error as e:
-                raise RuntimeError(f'Failed to insert into book_files.\n{e}')
+                    if not parent_arch_hash:
+                        parent_arch_hash = "NULL"
+                    else:
+                        parent_arch_hash = f"'{parent_arch_hash}'"
+                    cursor.execute(f"""insert into book_files (file_name, archive_hash, hash, status)
+                                   values('{escaped_file_name}', {parent_arch_hash}, '{file_hash}', 0);""")
+                cursor.connection.commit()
+        except sqlite3.Error as e:
+            raise RuntimeError(f'Failed to insert into book_files.\n{e}')
 
-            cursor.connection.commit()
 
     def is_scanned_archive(self, file_name: str):
-        rc = 0
         with contextlib.closing(self.connection.cursor()) as cursor:
             rc = cursor.execute(f"""select count(*) from 
                                     archive_files where file_name = '{self.escape_string(file_name)}';
                                     """).fetchone()[0]
-
         return rc > 0
+
+    def mark_archive_as_existent(self, file_name: str):
+        with contextlib.closing(self.connection.cursor()) as cursor:
+            fn = self.escape_string(os.path.abspath(file_name))
+            pattern = f"{fn}{os.sep}%"
+
+            query_paths = f"""select id from other_paths where path like '{pattern}';"""
+            query_res = cursor.execute(query_paths).fetchall()
+            path_ids = list(map(lambda x: str(x[0]), query_res))
+            path_id_param = ','.join(path_ids)
+
+
+            update_books = f"""update book_files set status=0 where file_name like '{pattern}';"""
+            cursor.execute(update_books)
+
+            update_archives = f"""update archive_files set status=0 where file_name like '{pattern}';"""
+            cursor.execute(update_archives)
+
+            update_archives = f"""update archive_files set status=0 where file_name = '{fn}';"""
+            cursor.execute(update_archives)
+
+            update_other = f"""update other_files set status=0 where path_id in ({path_id_param});"""
+            cursor.execute(update_other)
+
+            cursor.connection.commit()
+
 
     def is_scanned_book(self, file_name: str):
 
@@ -227,6 +382,12 @@ class BooKeeperDB:
             rc = cursor.execute(query).fetchone()[0]
         return rc > 0
 
+    def mark_book_as_existent(self, file_name: str):
+        with contextlib.closing(self.connection.cursor()) as cursor:
+            query = f"""update book_files set status=0 where file_name='{self.escape_string(file_name)}';"""
+            cursor.execute(query)
+            cursor.connection.commit()
+
     def is_bad_file(self, file_name: str):
         res, mod_file_name = test_unicode_string(file_name)
         if not res:
@@ -238,15 +399,6 @@ class BooKeeperDB:
                            """
             rc = cursor.execute(query).fetchone()[0]
         return rc > 0
-
-    def is_scanned_file(self, file_name: str, bft: BookFileType):
-        if self.is_bad_file(file_name):
-            return True
-
-        if bft in book_archive_types:
-            return self.is_scanned_archive(file_name)
-        else:
-            return self.is_scanned_book(file_name)
 
 
     def is_processed_file(self, file_hash: str, bft: BookFileType) -> bool:
@@ -262,17 +414,15 @@ class BooKeeperDB:
             rc = cursor.execute(f"""select count(*) from 
                                     archives where hash='{file_hash}';
                                     """).fetchone()[0]
-
         return rc > 0
 
     def is_processed_book(self, file_hash: str) -> bool:
-        rc = 0
         with contextlib.closing(self.connection.cursor()) as cursor:
             rc = cursor.execute(f"""select count(*) from 
                                     books where hash='{file_hash}';
                                     """).fetchone()[0]
-
         return rc > 0
+
 
     def update_cache(self):
         self.book_cache = None
@@ -283,7 +433,6 @@ class BooKeeperDB:
                 query = """select books.hash, books.text_data from books;"""
                 query_res = cursor.execute(query).fetchall()
                 self.book_cache = list(map(lambda t: (t[0], t[1].lower()), query_res))
-
 
                 query2 = """select hash, file_name from book_files;"""
                 query2_res = cursor.execute(query2).fetchall()
@@ -305,37 +454,41 @@ class BooKeeperDB:
 
         return res
 
-    def search_books_in_cache(self, s: str):
-        search_re = re.compile(re.escape(s.lower()))
-        res = False
+
+    def search_books_in_cache(self, sl: list[str]):
         file_list = list()
         hash_list = list()
         text_data_list = list()
-        s = s.lower()
-
-
         match_books = dict()
         text_data_dict = dict()
-        for h,t in self.book_cache:
-            fr = re.findall(search_re, t)
-            if fr:
-                rang = float ( len(fr) * len(s) ) / float ( (len(t) + 1) )
-                match_books[h] = rang
-                text_data_dict[h] = t
+        res = False
+        for s in sl:
+            if not s:
+                continue
+
+            search_re = re.compile(re.escape(s.lower()))
+            s = s.lower()
+
+            for h,t in self.book_cache:
+                fr = re.findall(search_re, t)
+                if fr:
+                    rang = float ( len(fr) * len(s) ) / float ( (len(t) + 1) )
+                    match_books[h] = match_books.get(h, 0) + rang
+                    text_data_dict[h] = t
 
         # Sort by rang
         sorted_match = sorted(match_books.items(), key=lambda kv: kv[1], reverse=True)
 
         for h, n in sorted_match:
             res = True
-            fl = self.file_name_cache[h]
+            fl = self.file_name_cache.get(h, [])
             cnt = len(fl)
             hash_list = hash_list + [h] * cnt
             file_list = file_list + fl
             t = text_data_dict[h]
             text_data_list = text_data_list + [t] * cnt
 
-        return res, file_list, hash_list, text_data_list, search_re
+        return res, file_list, hash_list, text_data_list
 
 
     def get_book_info(self, hash: str):
@@ -349,3 +502,112 @@ class BooKeeperDB:
             pass
 
         return query_res
+
+
+    def add_get_path(self, path: str):
+        path_query = f"""select other_paths.id, other_paths.status from other_paths where path='{path}';"""
+        with contextlib.closing(self.connection.cursor()) as cursor:
+            res = cursor.execute(path_query).fetchone()
+
+            if not res:
+                insert_path_query = f"""insert into other_paths (path, status) values('{path}', 0);"""
+                cursor.execute(insert_path_query)
+                cursor.connection.commit()
+
+                res = cursor.execute(path_query).fetchone()
+
+            path_id, path_status = res
+
+            if path_status != 0:
+                    path_update_query = f"""update other_paths set status=0 where id={path_id}"""
+                    cursor.execute(path_update_query)
+                    cursor.connection.commit()
+
+        return path_id
+
+
+    def add_get_other_file(self, logical_file_name: str, file_name: str, size: int):
+        escaped_file_name = self.escape_string(logical_file_name)
+        file_path, basename = os.path.split(escaped_file_name)
+        path_id = self.add_get_path(file_path)
+        new_file = False
+
+        file_query = f"""select id, status from other_files where path_id={path_id} and basename='{basename}';"""
+        with contextlib.closing(self.connection.cursor()) as cursor:
+            res = cursor.execute(file_query).fetchone()
+            if not res:
+                bn, ext = split_file_name(logical_file_name)
+                file_hash = get_file_hash(file_name)
+                insert_file_query = f"""insert into other_files (path_id, basename, extension, size, hash, status)
+values({path_id}, '{basename}', '{ext.lower()}',{size}, '{file_hash}', 0);"""
+                cursor.execute(insert_file_query)
+                cursor.connection.commit()
+
+                res = cursor.execute(file_query).fetchone()
+                new_file = True
+
+            file_id, status = res
+
+            if status != 0:
+                file_update_query = f"""update other_files set status=0 where id={file_id}"""
+                cursor.execute(file_update_query)
+                cursor.connection.commit()
+
+        return file_id, new_file
+
+
+    def prepare_scan(self):
+        self.new_book_counter = 0
+        with contextlib.closing(self.connection.cursor()) as cursor:
+            query = """update archive_files set status = -1;"""
+            cursor.execute(query)
+
+            query = """update book_files set status = -1;"""
+            cursor.execute(query)
+
+            #query = """update bad_files set status = -1;"""
+            #cursor.execute(query)
+
+            query = """update other_files set status = -1;"""
+            cursor.execute(query)
+
+            #query = """update other_paths set status = -1;"""
+            #cursor.execute(query)
+
+            cursor.connection.commit()
+
+            pass
+
+    def post_scan(self):
+        with contextlib.closing(self.connection.cursor()) as cursor:
+            query = """delete from archive_files where status = -1;"""
+            cursor.execute(query)
+
+            query = """delete from book_files where status = -1;"""
+            cursor.execute(query)
+
+            query = """delete from other_files where status = -1;"""
+            cursor.execute(query)
+
+            cursor.connection.commit()
+
+        if self.new_book_counter:
+            self.logger.print_log(f"{self.new_book_counter} new books added.")
+
+
+
+    def get_sql_cursor(self, query: str):
+        cursor = self.connection.cursor()
+        cursor.execute(query)
+        return cursor
+
+
+    def execute(self, query):
+        with contextlib.closing(self.connection.cursor()) as cursor:
+            cursor.execute(query)
+            cursor.connection.commit()
+
+
+    def get_cursor(self):
+        return self.connection.cursor()
+

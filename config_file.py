@@ -17,7 +17,6 @@
 
 import json
 import os
-from xmlrpc.client import Boolean
 
 
 class BooKeeperConfig:
@@ -36,6 +35,8 @@ class BooKeeperConfig:
                 self.delete_db_on_start = bool(result.get('delete_db_on_start', 0))
                 self.clear_ram_drive_on_start = bool(result.get('clear_ram_drive_on_start', 0))
                 self.export_path = result['export_path']
+                self.use_ram_drive_for_db = result['use_ram_drive_for_db']
+                self.ram_drive_db = os.path.join(self.ram_drive_path, 'ram.db') if self.use_ram_drive_for_db else ''
         except Exception as e:
             print(f'Failed to load configuration file: {config_file_name}')
             print(str(e))

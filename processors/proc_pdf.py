@@ -17,7 +17,6 @@
 
 from processors.proc_base import *
 from tools import *
-import shutil
 import re
 
 

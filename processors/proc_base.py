@@ -16,32 +16,31 @@
  """
 
 import threading
-from collections.abc import Callable
 from enum import IntEnum
 from abc import ABC, abstractmethod
-
 from tools import *
 import os
-from threading import *
+from logger import Logger
 
+"""
+Supported file types
+"""
 class BookFileType(IntEnum):
-    NONE = 0
-    DJVU = 1
-    PDF = 2
-    DOCX = 3
-    RTF = 4
-    TXT = 5
-    FB2 = 6
+    NONE       = 0
+    DJVU       = 1
+    PDF        = 2
+    DOCX       = 3
+    RTF        = 4
+    TXT        = 5
+    FB2        = 6
     ARCH_TARGZ = 7
-    ARCH_RAR = 8
-    ARCH_ZIP = 9
-    ARCH_7Z = 10
-    ODT = 11
-    DOC = 12
+    ARCH_RAR   = 8
+    ARCH_ZIP   = 9
+    ARCH_7Z    = 10
+    ODT        = 11
+    DOC        = 12
 
 book_archive_types = {BookFileType.ARCH_TARGZ, BookFileType.ARCH_7Z, BookFileType.ARCH_ZIP, BookFileType.ARCH_RAR}
-
-
 
 class BookInfo:
     def __init__(self,
@@ -83,6 +82,7 @@ class Book_PROC(ABC):
                  on_bad_callback: Callable[[str, str], None]):
         self.temp_dir = tmpdir
         self.lang_opt = lang_opt
+        self.logger = Logger()
         self.on_book_callback = on_book_callback
         self.max_page = 4
         self.max_text_data_len = 1024
@@ -185,6 +185,14 @@ class Book_PROC(ABC):
 
         return res
 
+    def get_catdoc_text(self, file_name: str) -> str:
+        res, code, stdout = run_shell_adv(['catdoc', f'{file_name}'],
+                                          print_stdout=False)
+        if res is False:
+            raise RuntimeError(f'Failed to convert doc to text. catdoc returned error: {code}\n{stdout}')
+
+        return stdout
+
     def ocr_text(self, image_file_name: str) -> str:
         uniq_name = str(threading.current_thread().native_id)
         base_name = os.path.join(self.temp_dir, f'{uniq_name}')
@@ -223,14 +231,15 @@ class Book_PROC(ABC):
 
 
 book_extensions = { BookFileType.DOCX : {'.docx'},
+                    BookFileType.DOC : {'.doc'},
                     BookFileType.ODT : {'.odt'},
                     BookFileType.RTF : {'.rtf'},
                     # BookFileType.TXT : {'.txt'},
                     BookFileType.FB2 : {'.fb2'},
                     BookFileType.ARCH_TARGZ : {'.tar.gz'},
-                    BookFileType.ARCH_RAR : {'.rar', '.RAR', 'Rar'},
-                    BookFileType.ARCH_ZIP : {'.zip', '.ZIP', '.Zip'},
-                    BookFileType.ARCH_7Z : {'.7z', '.7Z'},
+                    BookFileType.ARCH_RAR : {'.rar'},
+                    BookFileType.ARCH_ZIP : {'.zip'},
+                    BookFileType.ARCH_7Z : {'.7z',},
                     BookFileType.DJVU : {'.djvu', '.djv'},
                     BookFileType.PDF : {'.pdf'}}
 
