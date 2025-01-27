@@ -1,7 +1,7 @@
 # BooKeeper
 
 This small script is intended to scan your directory with documents and get meaningfull information required to organize your documents. 
-* Supported document file types are PDF, DJVU, FB2, RTF, DOCX, ODT.
+* Supported document file types are PDF, DJVU, FB2, RTF, DOCX, DOC, ODT.
 * Recursive archive (zip, rar, 7z, tar.gz) scanning is supported.
 
 Data is saved into sqlite3 database.
@@ -42,6 +42,7 @@ You have to prepare configuration file as JSON file to run script. Below is a co
   "ram_drive_path":  "/mnt/ramdrive",
   "libraries":       ["./test"],
   "work_path":       "./",
+  "export_path":     "./",
   "db_file_name":    "bookeeper_test.db",
   "log_file_name":   "bookeeper_test.log",
   "log_level":       "diagnostic",
@@ -51,20 +52,20 @@ You have to prepare configuration file as JSON file to run script. Below is a co
 
 The table below describes available options:
 
-| Name                  | Value                                                                                |
-|:----------------------|:-------------------------------------------------------------------------------------|
-| `"ram_drive_path"`    | Path to the directory with mounted RAM drive                                         |
-| `"libraries"`         | List of the path's with your documents.                                              |
-| `"work_path"`         | Path where do you want to keep results (database and log file)                       |
-| `"export_path"`       | Path where do you want to export books from you library, when you search for a book. |
-| `"db_file_name"`      | Name of the database file (just a basename without path)                             |
-| `"log_file_name"`     | Name of the log file (just a basename without path)                                  |
-| `"log_level"`         | Log level. Available values are: `Diagnostic`, `Log`, `Warning`, `Error`.            |
-| `"language_option"`   | Language option for tesseract. See `man tesseract`, `-l` option.                     |
-
-
+| Name                     | Value                                                                                |
+|:-------------------------|:-------------------------------------------------------------------------------------|
+| `"ram_drive_path"`       | Path to the directory with mounted RAM drive                                         |
+| `"libraries"`            | List of the path's with your documents.                                              |
+| `"work_path"`            | Path where do you want to keep results (database and log file)                       |
+| `"export_path"`          | Path where do you want to export books from you library, when you search for a book. |
+| `"db_file_name"`         | Name of the database file (just a basename without path)                             |
+| `"log_file_name"`        | Name of the log file (just a basename without path)                                  |
+| `"log_level"`            | Log level. Available values are: `Diagnostic`, `Log`, `Warning`, `Error`.            |
+| `"language_option"`      | Language option for tesseract. See `man tesseract`, `-l` option.                     |
+| `"use_ram_drive_for_db"` | If non-zero, work with database copy on ram drive when scanning library.             |
 
 There are also some debug (optional) values:
+
 | Name                          | Value                                                                      |  
 |:------------------------------|:---------------------------------------------------------------------------|
 | `"delete_artifacts"`          | If 1, deletes temporary artifacts from the RAM drive. By default 1.        |
@@ -83,16 +84,25 @@ After that run
 ```
 This script will take for a while, it depends on the size of your library. If you want to pause script execution press `Ctrl`-`C` and exit, if required.
 
-Once database is built, run
+Once database is built, you may start searching for your books by running:
 ```
 ./browse.sh <config file>
 ```
 
-In order to searh for required documents. Select and right click on a book from search result for a context menu. You may either to inspect document information, or try to open it. If file is required to be unpacked from archive, it will be extracted to the RAM drive.
+![alt text](browser_screen.png)
+
+There are several features available:
+* You may use up to 7 search queries to look for your document. Result will containg those documents which have all queries match.
+* Selecting a file shows text data extracted from am file with highlighted matches.
+* Open your document using external viewer.
+* Export to your temporary location specifed by `"export_path"`.
+* Show some information regarding selected file.
+
+In order to open required documents select and open context menu by right-click on a book from search result panel. You may either to inspect document information, or try to open it. If file is required to be unpacked from archive, it will be extracted to the RAM drive.
 
 ## Database structure
 
-The following tables will have the output information.
+The following tables will store the gathered information.
 
 ```
 CREATE TABLE books( 

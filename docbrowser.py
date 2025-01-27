@@ -130,32 +130,47 @@ class SearchBar:
                 on_add(n)
             imgui.pop_id()
 
-        if n > 0:
-            imgui.same_line()
-            imgui.push_id(f'minus_btn_{n}')
-            if imgui.button('-'):
-                on_remove(n)
-            imgui.pop_id()
-
-
-
-
+        imgui.same_line()
+        imgui.push_id(f'minus_btn_{n}')
+        if imgui.button('-'):
+            on_remove(n)
+        imgui.pop_id()
 
 class ResultListBox:
     def __init__(self, database: BooKeeperDB):
         self.result_list = list()
         self.hash_list = list()
         self.text_data_list = list()
+        self.search_spans_list = list()
         self.result_hovered_pos = 0
         self.last_clicked_pos = 0
         self.db = database
         self.normal_color = (1.0, 0.7, 0.7, 1.0)
         self.normal_color_2 = (1.0, 1.0, 0.6, 1.0)
         self.text_data = ''
+        self.span_data = list()
+        self.span_data_index = -1
+        self.max_text_data = " x" * 1024
 
     def draw(self):
-        imgui.input_text_multiline('text_data',
-                                   self.text_data)
+
+        if self.text_data:
+            selected_text = tools.select_text(self.text_data, self.span_data[self.span_data_index])
+            text_dims = imgui.calc_text_size(selected_text)
+            wrapped_text = tools.wrap_text(selected_text, text_dims.x, imgui.get_window_width())
+            imgui.input_text_multiline('text_data', wrapped_text)
+            if imgui.button('<'):
+                self.span_data_index -= 1
+
+            imgui.same_line()
+            if imgui.button('>'):
+                self.span_data_index += 1
+
+            if self.span_data_index < 0:
+                self.span_data_index = 0
+
+            if self.span_data_index >= len(self.span_data):
+                self.span_data_index = len(self.span_data) - 1
 
         with imgui.begin_list_box("", -1, -1) as list_box:
             if list_box.opened:
@@ -180,6 +195,8 @@ class ResultListBox:
 
                     if imgui.is_item_clicked():
                         self.text_data = self.text_data_list[pos]
+                        self.span_data = self.search_spans_list[pos]
+                        self.span_data_index = 0
                         self.last_clicked_pos = pos
 
                     imgui.pop_style_color()
@@ -188,7 +205,8 @@ class ResultListBox:
 
 
     def do_search(self, queries: list[str]):
-        res, self.result_list, self.hash_list, self.text_data_list = self.db.search_books_in_cache(queries)
+        self.text_data = ''
+        res, self.result_list, self.hash_list, self.text_data_list, self.search_spans_list = self.db.search_books_in_cache(queries)
         pass
 
     def get_active_item(self):
@@ -318,7 +336,7 @@ def on_report(ui: UserInterfaceState):
         ui.report_text = tools.wrap_text(bi.to_report(), 150)
         ui.set_mode(UserInterfaceMode.UI_REPORT_MODE)
 
-def do_search():
+def on_enter():
     global ui
     queries = list()
     for sb in ui.search_bar_list:
@@ -343,7 +361,7 @@ def draw_search_mode():
 
     n = 0
     for sb in ui.search_bar_list:
-        sb.draw(n, do_search, remove_search, add_search)
+        sb.draw(n, on_enter, remove_search, add_search)
         n += 1
 
     imgui.push_item_width(-1)
@@ -428,10 +446,16 @@ def main():
     impl = GlfwRenderer(window)
 
     io = imgui.get_io()
+    io.add_input_characters_utf8("⭆")
+    #g = io.fonts.get_glyph_ranges_cyrillic()
+    g = imgui.core.GlyphRanges([0x0020, 0x007F, 0x0400, 0x04FF, 0x02500, 0x025FF, 0])
+
+
     app_font = io.fonts.add_font_from_file_ttf("./fonts/UbuntuMono-R.ttf",
                                                28.0,
                                                None,
-                                               io.fonts.get_glyph_ranges_cyrillic())
+                                               g)
+
     impl.refresh_font_texture()
     set_style()
 

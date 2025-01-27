@@ -432,7 +432,8 @@ values(
             with contextlib.closing(self.connection.cursor()) as cursor:
                 query = """select books.hash, books.text_data from books;"""
                 query_res = cursor.execute(query).fetchall()
-                self.book_cache = list(map(lambda t: (t[0], t[1].lower()), query_res))
+                self.book_cache = list(map(lambda t: (t[0], t[1]), query_res))
+                #self.book_cache = list(map(lambda t: (t[0], t[1].lower()), query_res))
 
                 query2 = """select hash, file_name from book_files;"""
                 query2_res = cursor.execute(query2).fetchall()
@@ -459,36 +460,67 @@ values(
         file_list = list()
         hash_list = list()
         text_data_list = list()
-        match_books = dict()
         text_data_dict = dict()
+        results_list = list()
+        spans_list = list()
         res = False
+
+        # Find all books that matches every single search query
         for s in sl:
             if not s:
                 continue
 
-            search_re = re.compile(re.escape(s.lower()))
-            s = s.lower()
+            search_re = re.compile(re.escape(s), re.IGNORECASE)
 
+            match_books = dict()
             for h,t in self.book_cache:
-                fr = re.findall(search_re, t)
-                if fr:
-                    rang = float ( len(fr) * len(s) ) / float ( (len(t) + 1) )
-                    match_books[h] = match_books.get(h, 0) + rang
+                match_count = 0
+                match_spans = list()
+                for m in re.finditer(search_re, t):
+                    match_count += 1
+                    match_spans.append(m.span())
+
+                if match_count:
+                    rang = float ( match_count * len(s) ) / float ( (len(t) + 1) )
+                    match_books[h] = ( rang, match_spans )
                     text_data_dict[h] = t
+            results_list.append(match_books)
+
+        # Build intersection of all results, recalculating (multiplication) rangs.
+        match_books = results_list[0]
+        for i in range(1, len(results_list)):
+            next_res = results_list[i]
+            intersect_keys = match_books.keys() & next_res.keys()
+            remove_keys = list()
+            for k in match_books.keys():
+                if k not in intersect_keys:
+                    remove_keys.append(k)
+                else:
+                    prev_rang, prev_spans = match_books[k]
+                    next_rang, next_spans = next_res[k]
+                    rang = prev_rang * next_rang
+
+                    spans = prev_spans + next_spans
+                    spans = sorted(spans, key=lambda kv: kv[0])
+                    match_books[k] = (rang, spans)
+
+            for k in remove_keys:
+                match_books.pop(k)
 
         # Sort by rang
-        sorted_match = sorted(match_books.items(), key=lambda kv: kv[1], reverse=True)
+        sorted_match = sorted(match_books.items(), key=lambda kv: kv[1][0], reverse=True)
 
-        for h, n in sorted_match:
+        for h, (rang, spans) in sorted_match:
             res = True
             fl = self.file_name_cache.get(h, [])
             cnt = len(fl)
             hash_list = hash_list + [h] * cnt
+            spans_list = spans_list + [spans] * cnt
             file_list = file_list + fl
             t = text_data_dict[h]
             text_data_list = text_data_list + [t] * cnt
 
-        return res, file_list, hash_list, text_data_list
+        return res, file_list, hash_list, text_data_list, spans_list
 
 
     def get_book_info(self, hash: str):

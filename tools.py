@@ -237,3 +237,28 @@ def check_paths(pl: list[str]) -> list[str]:
             res.append(p)
 
     return res
+
+def select_text(s:str, sel_span: tuple[int, int]):
+    mark_open = '██'
+    mark_close = '██'
+    s = s[:sel_span[0]] + mark_open + s[sel_span[0]: sel_span[1]] + mark_close + s[sel_span[1]:]
+    return s
+
+def wrap_text(s:str, calculated_width: float, window_width: float) -> str:
+    char_per_line = int(len(s) * window_width / calculated_width)
+    src_len = len(s)
+    wrapped_text = ''
+    b = 0
+
+    while b < src_len:
+        line = s[b : b + char_per_line]
+        pos = line.rfind(' ')
+        if pos > 0:
+            line = s[b : b + pos+1] + '\n'
+            b += pos+1
+        else:
+            b += char_per_line
+
+        wrapped_text += line
+
+    return wrapped_text

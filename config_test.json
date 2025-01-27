@@ -8,7 +8,7 @@
   "log_level":       "diagnostic",
   "language_option": "eng+rus",
   "use_ram_drive_for_db": 1,
-  "delete_artifacts": 0,
-  "delete_db_on_start": 1,
+  "delete_artifacts": 1,
+  "delete_db_on_start": 0,
   "clear_ram_drive_on_start": 1
 }
