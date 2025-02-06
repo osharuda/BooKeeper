@@ -340,8 +340,11 @@ def on_enter():
     global ui
     queries = list()
     for sb in ui.search_bar_list:
-        queries.append(sb.last_query)
-    ui.result_list_box.do_search(queries)
+        if sb.last_query:
+            queries.append(sb.last_query)
+
+    if queries:
+        ui.result_list_box.do_search(queries)
 
 def add_search(n: int):
     global ui
