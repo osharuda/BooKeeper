@@ -23,6 +23,7 @@ import re
 import glob
 import hashlib
 import signal
+import shutil
 
 
 def set_nonblock_io(f):
@@ -229,6 +230,17 @@ def escape_path(fn: str):
 
     return os.sep.join(fnl)
 
+db_file_name_enhancement = str.maketrans({
+    " ": "_",
+    "\t": "_",
+    "\n": "",
+    "\r": "_"
+})
+
+def enhance_text_for_file_name(fn: str):
+    global db_file_name_enhancement
+    return fn.translate(db_file_name_enhancement)
+
 
 def check_paths(pl: list[str]) -> list[str]:
     res = list()
@@ -262,3 +274,18 @@ def wrap_text(s:str, calculated_width: float, window_width: float) -> str:
         wrapped_text += line
 
     return wrapped_text
+
+def change_file_name(fn: str, new_basename: str):
+    if not os.path.isfile(fn):
+        raise RuntimeError(f'Renamed file is not a file: {fn}')
+
+    dir_name, base_name = os.path.split(fn)
+    new_file_name = os.path.join(dir_name, new_basename)
+    try:
+        shutil.move(fn, new_file_name)
+    except Exception as e:
+        raise
+
+    return new_file_name
+
+

@@ -14,6 +14,7 @@
     See the License for the specific language governing permissions and
     limitations under the License.
  """
+import os.path
 
 from database import *
 from processors.proc_base import get_book_type, BookInfo, BookFileType, book_archive_types

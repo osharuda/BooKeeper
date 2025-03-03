@@ -426,20 +426,22 @@ values(
 
     def update_cache(self):
         self.book_cache = None
-        self.file_name_cache = None
+        self.file_name_cache = None # Translate hash value to the list of file names
+        self.archive_cache = None   # Translate file name to the parent archive hash
 
         try:
             with contextlib.closing(self.connection.cursor()) as cursor:
-                query = """select books.hash, books.text_data from books;"""
+                query = """select books.hash, books.text_data, books.booktype from books;"""
                 query_res = cursor.execute(query).fetchall()
-                self.book_cache = list(map(lambda t: (t[0], t[1]), query_res))
-                #self.book_cache = list(map(lambda t: (t[0], t[1].lower()), query_res))
+                self.book_cache = list(map(lambda t: (t[0], str(t[1]), t[2]), query_res))
 
-                query2 = """select hash, file_name from book_files;"""
+                query2 = """select hash, archive_hash, file_name from book_files;"""
                 query2_res = cursor.execute(query2).fetchall()
 
+                self.archive_cache = dict()
                 temp_file_name_cache = dict()
-                for h, fn in query2_res:
+                for h, ah, fn in query2_res:
+                    self.archive_cache[fn] = ah
                     if h not in temp_file_name_cache.keys():
                         temp_file_name_cache[h] = set()
 
@@ -463,6 +465,8 @@ values(
         text_data_dict = dict()
         results_list = list()
         spans_list = list()
+        archive_list = list()
+        book_type_list = list()
         res = False
 
         # Find all books that matches every single search query
@@ -473,7 +477,7 @@ values(
             search_re = re.compile(re.escape(s), re.IGNORECASE)
 
             match_books = dict()
-            for h,t in self.book_cache:
+            for h,t,bt in self.book_cache:
                 match_count = 0
                 match_spans = list()
                 for m in re.finditer(search_re, t):
@@ -482,7 +486,7 @@ values(
 
                 if match_count:
                     rang = float ( match_count * len(s) ) / float ( (len(t) + 1) )
-                    match_books[h] = ( rang, match_spans )
+                    match_books[h] = ( rang, match_spans, bt )
                     text_data_dict[h] = t
             results_list.append(match_books)
 
@@ -510,17 +514,22 @@ values(
         # Sort by rang
         sorted_match = sorted(match_books.items(), key=lambda kv: kv[1][0], reverse=True)
 
-        for h, (rang, spans) in sorted_match:
+        for h, (rang, spans, bt) in sorted_match:
             res = True
             fl = self.file_name_cache.get(h, [])
             cnt = len(fl)
+
+            for f in fl:
+                archive_list.append(self.is_file_archived(f))
+
             hash_list = hash_list + [h] * cnt
+            book_type_list = book_type_list + [bt] * cnt
             spans_list = spans_list + [spans] * cnt
             file_list = file_list + fl
             t = text_data_dict[h]
             text_data_list = text_data_list + [t] * cnt
 
-        return res, file_list, hash_list, text_data_list, spans_list
+        return res, file_list, hash_list, archive_list, text_data_list, spans_list, book_type_list
 
 
     def get_book_info(self, hash: str):
@@ -535,6 +544,14 @@ values(
 
         return query_res
 
+    def is_file_archived(self, file_name: str):
+        return self.archive_cache[file_name] is not None
+
+    def rename_file(self, old_file_name: str, new_file_name: str):
+        file_name_update_query = f"""update book_files set file_name='{self.escape_string(new_file_name)}' where file_name='{old_file_name}';"""
+        with contextlib.closing(self.connection.cursor()) as cursor:
+            cursor.execute(file_name_update_query)
+            cursor.connection.commit()
 
     def add_get_path(self, path: str):
         path_query = f"""select other_paths.id, other_paths.status from other_paths where path='{path}';"""
@@ -571,7 +588,7 @@ values(
                 bn, ext = split_file_name(logical_file_name)
                 file_hash = get_file_hash(file_name)
                 insert_file_query = f"""insert into other_files (path_id, basename, extension, size, hash, status)
-values({path_id}, '{basename}', '{ext.lower()}',{size}, '{file_hash}', 0);"""
+values({path_id}, '{basename}', '{self.escape_string(ext.lower())}',{size}, '{file_hash}', 0);"""
                 cursor.execute(insert_file_query)
                 cursor.connection.commit()
 

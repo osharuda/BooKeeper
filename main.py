@@ -21,10 +21,26 @@ from scanner import Scanner
 from tools import *
 from logger import *
 import sys
+import argparse
 
 
 if __name__ == "__main__":
-    config = BooKeeperConfig(sys.argv[1])
+    print(sys.argv)
+    arg_parser = argparse.ArgumentParser(
+                    prog='scanner',
+                    description='Bookeeper Library Scanner',
+                    epilog='------------------------------------------')
+    arg_parser.add_argument('--quick-scan',
+                            action = 'store',
+                            nargs=1,
+                            default = None,
+                            help = 'Quick scan, instructs to scan specified library subdirectory only.')
+
+    arg_parser.add_argument('config',
+                            help='Bookeeper configuration file (json formatted).'
+                            )
+    arguments = arg_parser.parse_args()
+    config = BooKeeperConfig(arguments.config)
     logger = Logger(log_file=config.log_file_name, level=config.log_level)
 
     if not is_ramdrive_mounted(config.ram_drive_path):

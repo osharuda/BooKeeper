@@ -247,6 +247,17 @@ all_book_extensions = set()
 for k, e in book_extensions.items():
     all_book_extensions = all_book_extensions.union(e)
 
+def get_book_extension(ext: BookFileType) -> str:
+    if ext==BookFileType.DJVU:
+        return '.djvu'
+    elif ext in book_extensions.keys():
+        ext_set = book_extensions[ext]
+        for elem in ext_set:
+            return elem
+    else:
+        return ''
+
+
 def get_book_type(file_name: str) -> BookFileType:
     """ Returns book type from file name
 
