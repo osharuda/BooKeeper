@@ -500,13 +500,16 @@ values(
                 if k not in intersect_keys:
                     remove_keys.append(k)
                 else:
-                    prev_rang, prev_spans = match_books[k]
-                    next_rang, next_spans = next_res[k]
+                    prev_rang, prev_spans, prev_bt = match_books[k]
+                    next_rang, next_spans, next_bt = next_res[k]
                     rang = prev_rang * next_rang
+
+                    if next_bt != prev_bt:
+                        raise RuntimeError('Missmatch of book type!')
 
                     spans = prev_spans + next_spans
                     spans = sorted(spans, key=lambda kv: kv[0])
-                    match_books[k] = (rang, spans)
+                    match_books[k] = (rang, spans, next_bt)
 
             for k in remove_keys:
                 match_books.pop(k)
